@@ -1,17 +1,20 @@
 import torch
 import random as rd
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib
 
 from torch import nn
 
-from config import Config
 from agent import Agent
 from memory import Memory
 
 
-class Model(nn.Module):
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from config.config import ConfigDQN
+
+
+class Model(nn.Module): #TODO: virer ça
     def __init__(self, env, n=32) -> None:
         super(Model, self).__init__()
         self.core = nn.Sequential(
@@ -26,16 +29,19 @@ class Model(nn.Module):
         return self.core(x)
 
 
+
 class DQN(Agent):
-    def __init__(self, config : Config) -> None:
+    def __init__(self, config : 'ConfigDQN') -> None:
         super(DQN, self).__init__(config)
         self.conf = config
 
         self.memory = Memory(config.capacity)
 
         # make q and target models and put them on selected device
+        self.device = torch.device(config.device if torch.cuda.is_available() else 'cpu')
         self.q_model = Model(self.env, config.model_width).to(self.device)
         self.target_model = Model(self.env, config.model_width).to(self.device)
+
         # copying q_model's data into the target model
         self.target_model.load_state_dict(self.q_model.state_dict())
 
@@ -53,6 +59,8 @@ class DQN(Agent):
         Get an action from the q_model, given the current state.
         state : input observation given by the environment
         """
+        state = torch.tensor(state, device=self.device)
+
         eps_end = self.conf.eps_end
         eps_start = self.conf.eps_start
         eps_decay = self.conf.eps_decay
@@ -75,7 +83,7 @@ class DQN(Agent):
         Triggers one learning iteration and returns the los for the current step
         """
         if len(self.memory) < self.conf.batch_size:
-            return
+            return 0
         
         transitions = self.memory.sample(self.conf.batch_size)
 
@@ -105,3 +113,11 @@ class DQN(Agent):
             param.grad.data.clamp_(-.1, .1)
         self.optim.step()
         return loss.cpu().detach().item()
+
+    def save(self, state, action, reward, next_state):
+        """
+        Saves transition to the memory
+        """
+        state = torch.tensor(state, device=self.device)
+        next_state = torch.tensor(next_state, device=self.device) if next_state is not None else None
+        self.memory.store(state, action, reward, next_state)

@@ -1,15 +1,25 @@
-class Config:
+class ConfigDQN: #TODO: GlobalConfig
+
+    name = 'dqn'
 
     # ID of the game to beat in gym
     env_id = 'CartPole-v1'
 
-    plot = True
+    plot = False
+
+    # configuring wandb
+    wandb = True
+    wandb_config = {
+    "model_width": 64,
+    "episodes": 2000,
+    "batch_size": 256
+    }
 
     # size of the memory
     capacity = 100000
 
     batch_size = 256
-    n_episodes = 2000
+    n_episodes = 600
 
     eps_start = .9
     eps_end = .05
@@ -22,7 +32,7 @@ class Config:
     target_update = 10
 
     # width of the models' hidden layers
-    model_width = 32
+    model_width = 64
 
     # torch device to use for the model
     device = 'cuda'

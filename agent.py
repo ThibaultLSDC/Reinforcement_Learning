@@ -1,8 +1,9 @@
 import gym
-import torch
 import matplotlib.pyplot as plt
+import numpy as np
 
 from itertools import count
+from abc import ABC, abstractmethod
 
 # set up matplotlib
 import matplotlib
@@ -11,60 +12,90 @@ if is_ipython:
     import IPython.display as display
 plt.ion()
 
-class Agent:
+
+# WandB setup
+import wandb
+
+
+class Agent(ABC):
     def __init__(self, config) -> None:
+        super().__init__()
+
         self.n_episodes = config.n_episodes
 
-        self.episode_rewards = []
+        self.episode_rewards = [] #TODO: better metrics
+        self.episode_loss = []
 
         self.plot = config.plot
+        self.wandb = config.wandb
 
         # initialize steps
         self.steps_done = 0
 
         self.env = gym.make(config.env_id)
 
-        self.device = torch.device(config.device if torch.cuda.is_available() else 'cpu')
+        if self.wandb:
+            wandb.init(project=f"{config.name}_{config.env_id}", entity="thibaultlsdc")
+            wandb.config = config.wandb_config
 
+
+    @abstractmethod
+    def act(self, state):
+        pass
+
+    @abstractmethod
+    def learn(self):
+        pass
+
+    @abstractmethod
+    def save(self, state, action, reward, next_state):
+        pass
 
     def make_episode(self, render=False):
-        state = torch.tensor(self.env.reset(), device=self.device)
-        rewards = 0
+        state = self.env.reset()
+        total_reward = 0
+        total_loss = 0
         for t in count():
             if render:
                 self.env.render()
             action = self.act(state)
             next_state, reward, done, _ = self.env.step(action.item())
 
-            rewards += reward
+            total_reward += reward
 
-            next_state = torch.tensor(next_state, device=self.device)
+            next_state = next_state
             if done:
                 next_state = None
             
-            self.memory.store(state, action, reward, next_state)
+            self.save(state, action, reward, next_state)
 
             state = next_state
 
-            loss = self.learn()
-            print(f"Step {self.steps_done}, loss : {loss}, len mem : {len(self.memory)}", end='\r')
+            total_loss += self.learn()
+
+            print(f"Episode : {len(self.episode_loss)}, Step {self.steps_done}, loss : {total_loss / (t+1)}", end='\r')
 
             if done:
-                self.episode_rewards.append(rewards)
+                self.episode_rewards.append(total_reward)
+                self.episode_loss.append(total_loss)
                 if self.plot:
-                    self.plot_rewards(50)
+                    self.plot_metric(self.episode_rewards, 50)
+                    # self.plot_metric(self.episode_loss, 50)
+                if self.wandb:
+                    wandb.log({'loss':total_loss / (len(self.episode_loss)+1), 'reward':total_reward})
                 break
         
-    def plot_rewards(self, avg_size):
-        plt.figure(3)
+    @staticmethod
+    def plot_metric(metric, avg_size):
+        plt.figure(666)
         plt.title('DQN')
         plt.xlabel('episodes')
         plt.ylabel('reward')
-        plt.plot(range(len(self.episode_rewards)), self.episode_rewards, 'b')
-        if len(self.episode_rewards) > avg_size:
-            means = torch.tensor(self.episode_rewards).unfold(0, avg_size, 1).type(torch.float32).mean(1).view(-1)
-            means = torch.cat((torch.zeros(avg_size-1), means))
-            plt.plot(means.numpy())
+        plt.plot(range(len(metric)), metric, 'b')
+        if len(metric) > avg_size:
+            means = np.convolve(np.array(metric), np.ones(avg_size)/avg_size, mode='valid')
+            means = np.concatenate((np.zeros(avg_size-1), means), axis=0)
+            plt.plot(means)
         
         plt.pause(0.001)
         if is_ipython:

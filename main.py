@@ -1,6 +1,7 @@
 from models.dqn import DQN
-from config import Config
+from config.config import ConfigDQN
 
-dqn = DQN(Config())
+
+dqn = DQN(ConfigDQN())
 
 dqn.train()
