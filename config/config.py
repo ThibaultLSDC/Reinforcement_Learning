@@ -1,11 +1,10 @@
 class GlobalConfig:
-    a = 1
 
     # ID of the game to beat in gym
     env_id = 'CartPole-v1'
 
     # width of the models' hidden layers
-    model_width = 64
+    model_shape = [64]
     n_episodes = 600
     batch_size = 256
 
@@ -13,7 +12,7 @@ class GlobalConfig:
     # configuring wandb
     wandb = False
     wandb_config = {
-    "model_width": model_width,
+    "model_shape": model_shape,
     "episodes": n_episodes,
     "batch_size": batch_size
     }
@@ -26,7 +25,7 @@ class GlobalConfig:
     # torch optimizer to be used
     optim = {
         'name':'adam',
-        'lr':1e-5,
+        'lr':1e-3,
         }
 
 
@@ -37,12 +36,12 @@ class DQNConfig(GlobalConfig):
     eps_start = .9
     eps_end = .05
     # speed for the exponential decay
-    eps_decay = 20000
+    eps_decay = 1000
 
     #
     gamma = 0.999
     # number of episodes before updating the target model
-    target_update = 1
+    target_update = 500
 
     update_method = 'soft'
 

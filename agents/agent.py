@@ -80,18 +80,18 @@ class Agent(ABC):
                     self.episode_rewards.append(total_reward)
                     self.episode_loss.append(total_loss)
                     if self.plot:
-                        self.plot_metric(self.episode_rewards, 50)
-                        # self.plot_metric(self.episode_loss, 50)
+                        self.plot_metric(self.episode_rewards, 50, 1)
+                        # self.plot_metric(self.episode_loss, 50, 2)
                     if self.wandb:
                         wandb.log({'loss':total_loss / (len(self.episode_loss)+1), 'reward':total_reward})
                 break
         
     @staticmethod
-    def plot_metric(metric, avg_size):
-        plt.figure(666)
+    def plot_metric(metric, avg_size, id):
+        plt.figure(id)
         plt.title('DQN')
         plt.xlabel('episodes')
-        plt.ylabel('reward')
+        plt.ylabel(f"{id}")
         plt.plot(range(len(metric)), metric, 'b')
         if len(metric) > avg_size:
             means = np.convolve(np.array(metric), np.ones(avg_size)/avg_size, mode='valid')
@@ -105,7 +105,7 @@ class Agent(ABC):
 
     def train(self):
         for episode in range(self.n_episodes):
-            if episode % 50 == 0:
+            if episode % 1 == 0:
                 self.make_episode(training=True, render=True)
             else:
                 self.make_episode(training=True, render=False)

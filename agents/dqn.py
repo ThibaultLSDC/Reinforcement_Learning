@@ -21,10 +21,12 @@ class DQN(Agent):
 
         self.memory = Memory(config.capacity)
 
+        self.q_model_shape = [self.env.observation_space.shape[0]] + config.model_shape + [self.env.action_space.n]
+
         # make q and target models and put them on selected device
         self.device = torch.device(config.device if torch.cuda.is_available() else 'cpu')
-        self.q_model = ModelLinear(self.env, config.model_width).to(self.device)
-        self.target_model = ModelLinear(self.env, config.model_width).to(self.device)
+        self.q_model = ModelLinear(self.q_model_shape).to(self.device)
+        self.target_model = ModelLinear(self.q_model_shape).to(self.device)
 
         # copying q_model's data into the target model
         self.target_model.load_state_dict(self.q_model.state_dict())
@@ -107,11 +109,12 @@ class DQN(Agent):
             if self.steps_done % self.target_update == 0:
                 self.target_model.load_state_dict(self.q_model.state_dict())
         elif self.update_method == 'soft':
-            for phi, phi_target in zip(self.target_model.parameters(), self.q_model.parameters()):
-                phi_target.data = self.tau * phi_target.data + (1-self.tau) * phi.data
+            for phi_target, phi in zip(self.target_model.parameters(), self.q_model.parameters()):
+                phi_target.data.copy_(self.tau * phi_target.data + (1-self.tau) * phi.data)
+            
 
         else:
-            raise NotImplementedError("Update method not implemented, 'periodoc' and 'soft' are implemented for the moment")
+            raise NotImplementedError("Update method not implemented, 'periodic' and 'soft' are implemented for the moment")
 
         return loss.cpu().detach().item()
 
