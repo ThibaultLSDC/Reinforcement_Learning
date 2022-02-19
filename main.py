@@ -1,9 +1,9 @@
-from agents.dqn import DQN
-from config.config import DQNConfig
+from agents import *
+from config.config import *
 
 
-dqn = DQN(DQNConfig())
+agent = DDPG(DDPGConfig())
 
-dqn.run(10)
-dqn.train()
-dqn.run(10)
+agent.run(1)
+agent.train()
+agent.run(10)

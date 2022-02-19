@@ -45,7 +45,7 @@ class DQN(Agent):
         else:
             self.optim = torch.optim.Adam(self.q_model.parameters())
 
-    def act(self, state):
+    def act(self, state, greedy=False):
         """
         Get an action from the q_model, given the current state.
         state : input observation given by the environment
@@ -59,14 +59,18 @@ class DQN(Agent):
         threshold = rd.random()
         eps = eps_end + (eps_start - eps_end) * np.exp(-1 * self.steps_done / eps_decay)
 
-        if threshold > eps:
+        if greedy:
             with torch.no_grad():
                 action = torch.argmax(self.q_model(state)).unsqueeze(0)
-
         else:
-            action = torch.tensor([rd.randrange(self.env.action_space.n)], device=self.device, dtype=torch.int32)
+            if threshold > eps:
+                with torch.no_grad():
+                    action = torch.argmax(self.q_model(state)).unsqueeze(0)
 
-        return action
+            else:
+                action = torch.tensor([rd.randrange(self.env.action_space.n)], device=self.device, dtype=torch.int32)
+
+        return action.item()
     
     def learn(self):
         """

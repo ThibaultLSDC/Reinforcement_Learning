@@ -1,7 +1,7 @@
 class GlobalConfig:
 
     # ID of the game to beat in gym
-    env_id = 'CartPole-v1'
+    env_id = 'MountainCarContinuous-v0'
 
     # width of the models' hidden layers
     model_shape = [64]
@@ -36,7 +36,7 @@ class DQNConfig(GlobalConfig):
     eps_start = .9
     eps_end = .05
     # speed for the exponential decay
-    eps_decay = 1000
+    eps_decay = 10000
 
     #
     gamma = 0.999
@@ -45,4 +45,14 @@ class DQNConfig(GlobalConfig):
 
     update_method = 'soft'
 
-    tau = .99
+    tau = .999
+
+
+class DDPGConfig(GlobalConfig):
+    name = 'ddpg'
+
+    gamma = .999
+
+    target_update = 500
+    update_method = 'soft'
+    tau = .999

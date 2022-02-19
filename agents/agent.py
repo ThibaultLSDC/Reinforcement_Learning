@@ -52,14 +52,15 @@ class Agent(ABC):
         raise NotImplementedError("Agent.save must be defined in the sub-class")
 
     def make_episode(self, training=True, render=False):
+        greedy = not training
         state = self.env.reset()
         total_reward = 0
         total_loss = 0
         for t in count():
             if render:
                 self.env.render()
-            action = self.act(state)
-            next_state, reward, done, _ = self.env.step(action.item())
+            action = self.act(state, greedy)
+            next_state, reward, done, _ = self.env.step(action)
 
             total_reward += reward
 
@@ -95,7 +96,7 @@ class Agent(ABC):
         plt.plot(range(len(metric)), metric, 'b')
         if len(metric) > avg_size:
             means = np.convolve(np.array(metric), np.ones(avg_size)/avg_size, mode='valid')
-            means = np.concatenate((np.zeros(avg_size-1), means), axis=0)
+            means = np.concatenate((np.ones(avg_size-1) * means[0], means), axis=0)
             plt.plot(means)
         
         plt.pause(0.001)
