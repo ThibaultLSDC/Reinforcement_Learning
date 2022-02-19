@@ -29,6 +29,11 @@ class DQN(Agent):
         # copying q_model's data into the target model
         self.target_model.load_state_dict(self.q_model.state_dict())
 
+        self.update_method = config.update_method
+        self.target_update = config.target_update
+
+        self.tau = config.tau
+
 
         # configure optimizer
         if config.optim['name'] == 'adam':
@@ -51,7 +56,6 @@ class DQN(Agent):
 
         threshold = rd.random()
         eps = eps_end + (eps_start - eps_end) * np.exp(-1 * self.steps_done / eps_decay)
-        self.steps_done += 1
 
         if threshold > eps:
             with torch.no_grad():
@@ -66,6 +70,8 @@ class DQN(Agent):
         """
         Triggers one learning iteration and returns the los for the current step
         """
+        self.steps_done += 1
+
         if len(self.memory) < self.conf.batch_size:
             return 0
         
@@ -96,6 +102,17 @@ class DQN(Agent):
         for param in self.q_model.parameters():
             param.grad.data.clamp_(-.1, .1)
         self.optim.step()
+
+        if self.update_method == 'periodic':
+            if self.steps_done % self.target_update == 0:
+                self.target_model.load_state_dict(self.q_model.state_dict())
+        elif self.update_method == 'soft':
+            for phi, phi_target in zip(self.target_model.parameters(), self.q_model.parameters()):
+                phi_target.data = self.tau * phi_target.data + (1-self.tau) * phi.data
+
+        else:
+            raise NotImplementedError("Update method not implemented, 'periodoc' and 'soft' are implemented for the moment")
+
         return loss.cpu().detach().item()
 
     def save(self, state, action, reward, next_state):

@@ -4,15 +4,14 @@ class GlobalConfig:
     # ID of the game to beat in gym
     env_id = 'CartPole-v1'
 
-    plot = False
-
     # width of the models' hidden layers
     model_width = 64
     n_episodes = 600
     batch_size = 256
 
+    plot = True
     # configuring wandb
-    wandb = True
+    wandb = False
     wandb_config = {
     "model_width": model_width,
     "episodes": n_episodes,
@@ -43,4 +42,8 @@ class DQNConfig(GlobalConfig):
     #
     gamma = 0.999
     # number of episodes before updating the target model
-    target_update = 10
+    target_update = 1
+
+    update_method = 'soft'
+
+    tau = .99

@@ -2,7 +2,7 @@ from torch import nn
 
 class ModelLinear(nn.Module): #TODO: virer ça
     def __init__(self, env, n=32) -> None:
-        super(Model, self).__init__()
+        super(ModelLinear, self).__init__()
         self.core = nn.Sequential(
         nn.Linear(env.observation_space.shape[0], n),
         nn.ReLU(),

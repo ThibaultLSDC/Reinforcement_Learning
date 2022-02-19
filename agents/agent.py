@@ -41,17 +41,17 @@ class Agent(ABC):
 
     @abstractmethod
     def act(self, state):
-        pass
+        raise NotImplementedError("Agent.act must be defined in the sub-class")
 
     @abstractmethod
     def learn(self):
-        pass
+        raise NotImplementedError("Agent.learn must be defined in the sub-class")
 
     @abstractmethod
     def save(self, state, action, reward, next_state):
-        pass
+        raise NotImplementedError("Agent.save must be defined in the sub-class")
 
-    def make_episode(self, render=False):
+    def make_episode(self, training=True, render=False):
         state = self.env.reset()
         total_reward = 0
         total_loss = 0
@@ -71,18 +71,19 @@ class Agent(ABC):
 
             state = next_state
 
-            total_loss += self.learn()
-
-            print(f"Episode : {len(self.episode_loss)}, Step {self.steps_done}, loss : {total_loss / (t+1)}", end='\r')
+            if training:
+                total_loss += self.learn()
+                print(f"Episode : {len(self.episode_loss)}, Step {self.steps_done}, loss : {total_loss / (t+1)}", end='\r')
 
             if done:
-                self.episode_rewards.append(total_reward)
-                self.episode_loss.append(total_loss)
-                if self.plot:
-                    self.plot_metric(self.episode_rewards, 50)
-                    # self.plot_metric(self.episode_loss, 50)
-                if self.wandb:
-                    wandb.log({'loss':total_loss / (len(self.episode_loss)+1), 'reward':total_reward})
+                if training:
+                    self.episode_rewards.append(total_reward)
+                    self.episode_loss.append(total_loss)
+                    if self.plot:
+                        self.plot_metric(self.episode_rewards, 50)
+                        # self.plot_metric(self.episode_loss, 50)
+                    if self.wandb:
+                        wandb.log({'loss':total_loss / (len(self.episode_loss)+1), 'reward':total_reward})
                 break
         
     @staticmethod
@@ -104,10 +105,11 @@ class Agent(ABC):
 
     def train(self):
         for episode in range(self.n_episodes):
-            if episode % 1 == 0:
-                self.make_episode(True)
+            if episode % 50 == 0:
+                self.make_episode(training=True, render=True)
             else:
-                self.make_episode()
-
-            if episode % self.conf.target_update == 0:
-                self.target_model.load_state_dict(self.q_model.state_dict())
+                self.make_episode(training=True, render=False)
+    
+    def run(self, N):
+        for ep in range(N):
+            self.make_episode(training=False, render=True)
