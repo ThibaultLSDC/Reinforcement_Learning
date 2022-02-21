@@ -1,7 +1,7 @@
 class GlobalConfig:
 
     # ID of the game to beat in gym
-    env_id = 'LunarLanderContinuous-v2'
+    env_id = 'Pendulum-v1'
 
     # width of the models' hidden layers
     model_shape = [64]
@@ -12,9 +12,9 @@ class GlobalConfig:
     # configuring wandb
     wandb = False
     wandb_config = {
-    "model_shape": model_shape,
-    "episodes": n_episodes,
-    "batch_size": batch_size
+        "model_shape": model_shape,
+        "episodes": n_episodes,
+        "batch_size": batch_size
     }
 
     # size of the memory
@@ -24,15 +24,15 @@ class GlobalConfig:
     device = 'cuda'
     # torch optimizer to be used
     optim = {
-        'name':'adam',
-        'lr':1e-3,
-        }
-    
+        'name': 'adam',
+        'lr': 1e-3,
+    }
+
     losses = None
 
 
 class DQNConfig(GlobalConfig):
-    
+
     name = 'dqn'
 
     eps_start = .9

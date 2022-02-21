@@ -1,5 +1,5 @@
-from agents import *
-from config.config import *
+from agents import DDPG
+from config.config import DDPGConfig
 
 
 agent = DDPG(DDPGConfig())
