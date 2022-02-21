@@ -25,9 +25,7 @@ class DDPG(Agent):
         self.act_size = self.env.action_space.shape[0]
 
         self.q_model_shape = [self.obs_size + self.act_size] + config.model_shape + [1]
-        self.ac_model_shape = [self.obs_size] + config.model_shape + [self.act_size]
-        print(self.q_model_shape)
-        print(self.ac_model_shape)
+        self.ac_model_shape = [self.obs_size] + config.model_shape + [1]
 
         # make q_model and q_target models and put them on selected device
         self.device = torch.device(config.device if torch.cuda.is_available() else 'cpu')
@@ -68,25 +66,21 @@ class DDPG(Agent):
         
         self.ac_bounds = [self.env.action_space.low[0], self.env.action_space.high[0]]
 
-
-        self.std_start = config.std_start
-        self.std_end = config.std_end
-        self.std_decay = config.std_decay
-        self.std = self.std_end + (self.std_start - self.std_end) * np.exp(- self.steps_done / self.std_decay)
+        print(self.ac_bounds)
 
     def act(self, state, greedy=False):
         """
         Get an action from the q_model, given the current state.
         state : input observation given by the environment
         """
-        self.std = self.std_end + (self.std_start - self.std_end) * np.exp(- self.steps_done / self.std_decay)
         state = torch.tensor(state, device=self.device)
 
         with torch.no_grad():
             action = self.ac_model(state).unsqueeze(0)
         if greedy:
-            action = (action + self.std * torch.randn_like(action)).clamp_(self.ac_bounds[0], self.ac_bounds[1])
-        return [x for x in action.squeeze().cpu()]
+            action = (action + torch.randn_like(action)).clamp_(self.ac_bounds[0], self.ac_bounds[1])
+
+        return [action.item()]
     
     def learn(self):
         """
@@ -105,7 +99,7 @@ class DDPG(Agent):
         non_final_next_states = torch.cat([x.unsqueeze(0).clone() for x in batch.next_state if x is not None])
 
         states = torch.cat([x.unsqueeze(0).clone() for x in batch.state])
-        actions = torch.cat(batch.action, dim=0).to(self.device).unsqueeze(-1).squeeze(-1)
+        actions = torch.tensor([x[0] for x in batch.action]).to(self.device).unsqueeze(-1)
         rewards = torch.cat([torch.tensor(x).unsqueeze(0) for x in batch.reward]).to(self.device)
 
         values = self.q_model(torch.concat([states, actions], dim=1))
@@ -151,7 +145,7 @@ class DDPG(Agent):
         else:
             raise NotImplementedError("Update method not implemented, 'periodic' and 'soft' are implemented for the moment")
 
-        return {"loss_q":loss1.cpu().detach().item(), "loss_ac": loss2.cpu().detach().item()}
+        return loss1.cpu().detach().item() + loss2.cpu().detach().item()
 
     def save(self, state, action, reward, next_state):
         """
@@ -159,5 +153,4 @@ class DDPG(Agent):
         """
         state = torch.tensor(state, device=self.device)
         next_state = torch.tensor(next_state, device=self.device) if next_state is not None else None
-        action = torch.tensor(action).unsqueeze(0)
         self.memory.store(state, action, reward, next_state)

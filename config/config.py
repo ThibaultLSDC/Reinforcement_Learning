@@ -1,14 +1,14 @@
 class GlobalConfig:
 
     # ID of the game to beat in gym
-    env_id = 'MountainCarContinuous-v0'
+    env_id = 'LunarLanderContinuous-v2'
 
     # width of the models' hidden layers
     model_shape = [64]
     n_episodes = 600
-    batch_size = 256
+    batch_size = 4
 
-    plot = True
+    plot = False
     # configuring wandb
     wandb = False
     wandb_config = {
@@ -27,6 +27,8 @@ class GlobalConfig:
         'name':'adam',
         'lr':1e-3,
         }
+    
+    losses = None
 
 
 class DQNConfig(GlobalConfig):
@@ -47,9 +49,27 @@ class DQNConfig(GlobalConfig):
 
     tau = .999
 
+    losses = ['q']
+
 
 class DDPGConfig(GlobalConfig):
     name = 'ddpg'
+
+    gamma = .999
+
+    target_update = 500
+    update_method = 'soft'
+    tau = .9995
+
+    std_start = 1
+    std_end = .05
+    std_decay = 10000
+
+    losses = ['q', 'ac']
+
+
+class TD3Config(GlobalConfig):
+    name = 'td3'
 
     gamma = .999
 
