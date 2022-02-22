@@ -4,13 +4,13 @@ class GlobalConfig:
     env_id = 'Pendulum-v1'
 
     # width of the models' hidden layers
-    model_shape = [64]
+    model_shape = [8, 8, 8]
     n_episodes = 600
-    batch_size = 4
+    batch_size = 64
 
     plot = False
     # configuring wandb
-    wandb = False
+    wandb = True
     wandb_config = {
         "model_shape": model_shape,
         "episodes": n_episodes,
@@ -59,11 +59,11 @@ class DDPGConfig(GlobalConfig):
 
     target_update = 500
     update_method = 'soft'
-    tau = .9995
+    tau = .999
 
     std_start = 1
-    std_end = .05
-    std_decay = 10000
+    std_end = 1
+    std_decay = 50000
 
     losses = ['q', 'ac']
 
@@ -71,8 +71,18 @@ class DDPGConfig(GlobalConfig):
 class TD3Config(GlobalConfig):
     name = 'td3'
 
-    gamma = .999
+    gamma = .99
 
     target_update = 500
     update_method = 'soft'
-    tau = .999
+    tau = .995
+
+    q_update_per_step = 2
+
+    std_start = .1
+    std_end = .1
+    std_decay = 50000
+
+    target_smoothing = 0.5
+
+    losses = ['q1', 'q2', 'ac']

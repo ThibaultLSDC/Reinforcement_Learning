@@ -1,8 +1,8 @@
-from agents import DDPG
-from config.config import DDPGConfig
+from agents import DDPG, TD3
+from config.config import DDPGConfig, TD3Config
 
-
-agent = DDPG(DDPGConfig())
+# agent = DDPG(DDPGConfig())
+agent = TD3(TD3Config())
 
 agent.run(1)
 agent.train()

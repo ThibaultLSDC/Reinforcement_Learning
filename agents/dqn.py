@@ -132,7 +132,7 @@ class DQN(Agent):
             raise NotImplementedError(
                 "Update method not implemented, 'periodic' and 'soft' are implemented for the moment")
 
-        return loss.cpu().detach().item()
+        return {"loss_q": loss.cpu().detach().item()}
 
     def save(self, state, action, reward, next_state):
         """

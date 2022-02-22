@@ -1,11 +1,10 @@
 import torch
-import numpy as np
-
 from torch import nn
 
 from agents.agent import Agent
 from utils.memory import Memory
 from agents.architectures import ModelLinear
+import numpy as np
 
 from typing import TYPE_CHECKING
 
@@ -25,10 +24,7 @@ class DDPG(Agent):
 
         self.q_model_shape = [self.obs_size +
                               self.act_size] + config.model_shape + [1]
-        self.ac_model_shape = [self.obs_size] + \
-            config.model_shape + [self.act_size]
-        print(self.q_model_shape)
-        print(self.ac_model_shape)
+        self.ac_model_shape = [self.obs_size] + config.model_shape + [1]
 
         # make q_model and q_target models and put them on selected device
         self.device = torch.device(
@@ -96,9 +92,10 @@ class DDPG(Agent):
         with torch.no_grad():
             action = self.ac_model(state).unsqueeze(0)
         if greedy:
-            action = (action + self.std * torch.randn_like(action)
+            action = (action + torch.randn_like(action)
                       ).clamp_(self.ac_bounds[0], self.ac_bounds[1])
-        return [x for x in action.squeeze(0).cpu()]
+
+        return [action.item()]
 
     def learn(self):
         """
@@ -119,8 +116,8 @@ class DDPG(Agent):
             [x.unsqueeze(0).clone() for x in batch.next_state if x is not None])
 
         states = torch.cat([x.unsqueeze(0).clone() for x in batch.state])
-        actions = torch.cat(batch.action, dim=0).to(
-            self.device).unsqueeze(-1).squeeze(-1)
+        actions = torch.tensor([x[0] for x in batch.action]).to(
+            self.device).unsqueeze(-1)
         rewards = torch.cat([torch.tensor(x).unsqueeze(0)
                             for x in batch.reward]).to(self.device)
 
@@ -154,7 +151,7 @@ class DDPG(Agent):
                 [states, pred_actions], dim=-1)))
         self.ac_optim.zero_grad()
         loss2.backward()
-        for param in self.q_model.parameters():
+        for param in self.ac_model.parameters():
             param.grad.data.clamp_(-.1, .1)
         self.ac_optim.step()
 
@@ -184,5 +181,4 @@ class DDPG(Agent):
         state = torch.tensor(state, device=self.device)
         next_state = torch.tensor(
             next_state, device=self.device) if next_state is not None else None
-        action = torch.tensor(action).unsqueeze(0)
         self.memory.store(state, action, reward, next_state)
