@@ -79,8 +79,8 @@ class TD3Config(GlobalConfig):
 
     q_update_per_step = 2
 
-    std_start = .1
-    std_end = .1
+    std_start = .5
+    std_end = .5
     std_decay = 50000
 
     target_smoothing = 0.5
