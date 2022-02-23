@@ -4,7 +4,7 @@ class GlobalConfig:
     env_id = 'Pendulum-v1'
 
     # width of the models' hidden layers
-    model_shape = [8, 8, 8]
+    model_shape = [64]
     n_episodes = 600
     batch_size = 64
 
@@ -29,6 +29,8 @@ class GlobalConfig:
     }
 
     losses = None
+
+    start_eps = 20
 
 
 class DQNConfig(GlobalConfig):
@@ -62,10 +64,19 @@ class DDPGConfig(GlobalConfig):
     tau = .999
 
     std_start = 1
-    std_end = 1
-    std_decay = 50000
+    std_end = .05
+    std_decay = 20000
 
     losses = ['q', 'ac']
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.wandb_config['std_start'] = self.std_start
+        self.wandb_config['std_end'] = self.std_end
+        self.wandb_config['std_decay'] = self.std_decay
+        self.wandb_config['tau'] = self.tau
+        self.wandb_config['gamma'] = self.gamma
 
 
 class TD3Config(GlobalConfig):
@@ -77,12 +88,25 @@ class TD3Config(GlobalConfig):
     update_method = 'soft'
     tau = .995
 
-    q_update_per_step = 2
+    std_start = 1
+    std_end = .05
+    std_decay = 20000
 
-    std_start = .5
-    std_end = .5
-    std_decay = 50000
+    q_update_per_step = 1
 
-    target_smoothing = 0.5
+    target_smoothing = 0.0
+
+    target_std = 0.0
 
     losses = ['q1', 'q2', 'ac']
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.wandb_config['target_smoothing'] = self.target_smoothing
+        self.wandb_config['std_start'] = self.std_start
+        self.wandb_config['std_end'] = self.std_end
+        self.wandb_config['std_decay'] = self.std_decay
+        self.wandb_config['tau'] = self.tau
+        self.wandb_config['gamma'] = self.gamma
+        self.wandb_config['target_std'] = self.target_std

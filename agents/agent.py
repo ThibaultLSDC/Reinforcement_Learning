@@ -50,10 +50,13 @@ class Agent(ABC):
         if self.wandb:
             wandb.init(
                 project=f"{config.name}_{config.env_id}", entity="thibaultlsdc")
-            wandb.config = config.wandb_config
+            wandb.config.update(config.wandb_config)
 
         # initialize steps
         self.steps_done = 0
+
+        # number of eps ran before training
+        self.start_eps = config.start_eps
 
     @abstractmethod
     def act(self, state: list, greedy: bool) -> None:
@@ -91,13 +94,14 @@ class Agent(ABC):
         raise NotImplementedError(
             "Agent.save must be defined in the sub-class")
 
-    def make_episode(self, training: bool = True, render: bool = False) -> None:
+    def make_episode(self, training: bool = True, render: bool = False, greedy: bool = False) -> None:
         """
         Runs a full episode in the agent's environment, until done is sent by the environment
         :param training: If the agent should run a learning session and improve its network(s). If False, the agent will run an episode with a greedy policy.
         :param render: True if the gym env should be displayed
         """
-        greedy = not training
+        if training:
+            greedy = False
         state = self.env.reset()
         for t in count():
             if render:
@@ -121,7 +125,7 @@ class Agent(ABC):
                     if key != 'reward':
                         self.metrics[key].step(new_metrics[key])
                 print(
-                    f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_done}", end='\r')
+                    f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_done}, Std : {self.std:.4f}", end='\r')
 
             if done:
                 if training:
@@ -166,6 +170,9 @@ class Agent(ABC):
         """
         Self telling, trains the agent over n_episodes episodes
         """
+        for ep in range(self.start_eps):
+            self.make_episode(training=False, render=False, greedy=False)
+
         for episode in range(self.n_episodes):
             if episode % 1 == 0:
                 self.make_episode(training=True, render=True)
@@ -178,4 +185,4 @@ class Agent(ABC):
         :param n_runs: ...
         """
         for run in range(n_runs):
-            self.make_episode(training=False, render=True)
+            self.make_episode(training=False, render=True, greedy=True)

@@ -91,9 +91,9 @@ class DDPG(Agent):
 
         with torch.no_grad():
             action = self.ac_model(state).unsqueeze(0)
-        if greedy:
-            action = (action + torch.randn_like(action)
-                      ).clamp_(self.ac_bounds[0], self.ac_bounds[1])
+        if not greedy:
+            action = (action + torch.randn_like(action) * self.std
+                      ).clamp(self.ac_bounds[0], self.ac_bounds[1])
 
         return [action.item()]
 

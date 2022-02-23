@@ -57,6 +57,7 @@ class TD3(Agent):
         self.tau = config.tau
         self.ac_smoothing = config.target_smoothing
         self.q_update = config.q_update_per_step
+        self.target_std = config.target_std
 
         # configure q1_optimizer
         if config.optim['name'] == 'adam':
@@ -112,9 +113,9 @@ class TD3(Agent):
         with torch.no_grad():
             action = self.ac_model(state).unsqueeze(0)
 
-        if greedy:
+        if not greedy:
             action = (action + self.std * torch.randn_like(action)
-                      ).clamp_(self.ac_bounds[0], self.ac_bounds[1])
+                      ).clamp(self.ac_bounds[0], self.ac_bounds[1])
         return [x for x in action.squeeze(0).cpu()]
 
     def learn(self):
@@ -142,9 +143,6 @@ class TD3(Agent):
             rewards = torch.cat([torch.tensor(x).unsqueeze(0)
                                 for x in batch.reward]).to(self.device)
 
-            values1 = self.q1_model(torch.concat([states, actions], dim=1))
-            values2 = self.q2_model(torch.concat([states, actions], dim=1))
-
             next_values1 = torch.zeros(
                 self.conf.batch_size, device=self.device, dtype=torch.float32)
             next_values2 = torch.zeros(
@@ -153,8 +151,8 @@ class TD3(Agent):
             target_actions = self.ac_target_model(
                 non_final_next_states).detach()
 
-            target_noise = torch.randn_like(
-                target_actions) * torch.clamp(torch.tensor(.2), -self.ac_smoothing, self.ac_smoothing)
+            target_noise = torch.clamp(torch.randn_like(
+                target_actions) * torch.tensor(self.target_std), -self.ac_smoothing, self.ac_smoothing)
 
             target_actions = torch.clamp(
                 target_noise + target_actions, self.ac_bounds[0], self.ac_bounds[1])
@@ -171,6 +169,9 @@ class TD3(Agent):
             next_values = torch.min(next_values, dim=-1)[0]
 
             expected = next_values * self.conf.gamma + rewards
+
+            values1 = self.q1_model(torch.concat([states, actions], dim=1))
+            values2 = self.q2_model(torch.concat([states, actions], dim=1))
 
             criterion = nn.MSELoss()
 
@@ -209,6 +210,7 @@ class TD3(Agent):
                     self.q2_model.state_dict())
                 self.ac_target_model.load_state_dict(
                     self.ac_model.state_dict())
+
         elif self.update_method == 'soft':
             for phi_target, phi in zip(self.q1_target_model.parameters(), self.q1_model.parameters()):
                 phi_target.data.copy_(
