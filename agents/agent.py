@@ -37,6 +37,7 @@ class Agent(ABC):
         self.metrics_list = [
             f"loss_{x}" for x in self.config.losses] + ['reward']
         self.metrics = {key: Metric(key) for key in self.metrics_list}
+        self.metrics['reward'] = Metric('reward', type='sum')
 
         # Duration of training, in number of episodes
         self.n_episodes = config.n_episodes
@@ -94,7 +95,7 @@ class Agent(ABC):
         raise NotImplementedError(
             "Agent.save must be defined in the sub-class")
 
-    def make_episode(self, training: bool = True, render: bool = False, greedy: bool = False) -> None:
+    def make_episode(self, training: bool = True, render: bool = False, greedy: bool = False, plot: bool=False) -> None:
         """
         Runs a full episode in the agent's environment, until done is sent by the environment
         :param training: If the agent should run a learning session and improve its network(s). If False, the agent will run an episode with a greedy policy.
@@ -111,11 +112,7 @@ class Agent(ABC):
 
             self.metrics['reward'].step(reward)
 
-            next_state = next_state
-            if done:
-                next_state = None
-
-            self.save(state, action, reward, next_state)
+            self.save(state, action, reward, done, next_state)
 
             state = next_state
 
@@ -125,16 +122,16 @@ class Agent(ABC):
                     if key != 'reward':
                         self.metrics[key].step(new_metrics[key])
                 print(
-                    f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_done}, Std : {self.std:.4f}", end='\r')
+                    f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_done}, Std : {self.eps:.4f}", end='\r')
 
             if done:
                 if training:
                     for key in self.metrics_list:
                         self.metrics[key].new_ep()
 
-                    if self.plot:
-                        self.plot_metric(self.metrics['reward'].history, 50, 1)
-                        # self.plot_metric(self.episode_loss, 50, 2)
+                    if self.plot and plot:
+                        self.plot_metric(self.metrics['reward'], 50)
+                        # self.plot_metric(self.metrics['loss_q'], None)
                     if self.wandb:
                         desc = {key: self.metrics[key].history[-1]
                                 for key in self.metrics_list}
@@ -142,24 +139,26 @@ class Agent(ABC):
                 break
 
     @staticmethod
-    def plot_metric(metric: list, avg_size: int, id) -> None:
+    def plot_metric(metrics:Metric, avg_size: int) -> None:
         """
         Pretty self telling, plots metric, with a sliding average of width avg_size
+
         :param metric: List containing the data to plot
-        :param avg_size: ...
-        :param id: just the name of the plot's window, must be set different for different metrics, and identical for identical metrics
+        :param avg_size: if int, plots the sliding average of width avg_size, if None, no running average
         """
-        plt.figure(id)
-        plt.title('DQN')
+        metric = metrics.history[1:]
+        plt.figure(metrics.name)
+        plt.title(metrics.name)
         plt.xlabel('episodes')
-        plt.ylabel(f"{id}")
+        plt.ylabel(f"{metrics.name}")
         plt.plot(range(len(metric)), metric, 'b')
-        if len(metric) > avg_size:
-            means = np.convolve(np.array(metric), np.ones(
-                avg_size)/avg_size, mode='valid')
-            means = np.concatenate(
-                (np.ones(avg_size-1) * means[0], means), axis=0)
-            plt.plot(means)
+        if avg_size != None:
+            if len(metric) > avg_size:
+                means = np.convolve(np.array(metric), np.ones(
+                    avg_size)/avg_size, mode='valid')
+                means = np.concatenate(
+                    (np.ones(avg_size-1) * means[0], means), axis=0)
+                plt.plot(means)
 
         plt.pause(0.001)
         if is_ipython:
@@ -175,7 +174,10 @@ class Agent(ABC):
 
         for episode in range(self.n_episodes):
             if episode % 1 == 0:
-                self.make_episode(training=True, render=True)
+                if episode % 20 == 0:
+                    self.make_episode(training=True, render=True, plot=True)
+                else:
+                    self.make_episode(training=True, render=True, plot=False)
             else:
                 self.make_episode(training=True, render=False)
 

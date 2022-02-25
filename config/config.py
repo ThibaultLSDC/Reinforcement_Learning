@@ -1,16 +1,16 @@
 class GlobalConfig:
 
     # ID of the game to beat in gym
-    env_id = 'Pendulum-v1'
+    env_id = 'CartPole-v1'
 
     # width of the models' hidden layers
     model_shape = [64]
     n_episodes = 600
-    batch_size = 64
+    batch_size = 128
 
-    plot = False
+    plot = True
     # configuring wandb
-    wandb = True
+    wandb = False
     wandb_config = {
         "model_shape": model_shape,
         "episodes": n_episodes,
@@ -40,7 +40,7 @@ class DQNConfig(GlobalConfig):
     eps_start = .9
     eps_end = .05
     # speed for the exponential decay
-    eps_decay = 10000
+    eps_decay = 5000
 
     #
     gamma = 0.999
@@ -49,7 +49,7 @@ class DQNConfig(GlobalConfig):
 
     update_method = 'soft'
 
-    tau = .999
+    tau = .995
 
     losses = ['q']
 
