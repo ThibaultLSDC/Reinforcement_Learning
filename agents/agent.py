@@ -40,9 +40,9 @@ class Agent(ABC):
         self.metrics['reward'] = Metric('reward', type='sum')
 
         # Duration of training, in number of episodes
-        self.n_episodes = config.n_episodes
         self.n_steps = config.n_steps
         self.pre_run_steps = config.pre_run_steps
+        self.greedy_steps = config.greedy_steps
 
         # Logs and graphics
         # If one wants to plot the reward
@@ -132,12 +132,13 @@ class Agent(ABC):
 
         for step in counter:
             training = (step > self.pre_run_steps)
+            greedy = (step > self.pre_run_steps + self.greedy_steps)
             episode_steps += 1
 
             if n_episodes % render_rate == 0 and training:
                 self.env.render()
 
-            action = self.act(state, False)
+            action = self.act(state, greedy=greedy)
             next_state, reward, done, _ = self.env.step(action)
 
             if training:
@@ -149,6 +150,8 @@ class Agent(ABC):
 
             if training:
                 new_metrics = self.learn()
+                if not done:
+                    wandb.log(new_metrics)
                 if type(new_metrics) == dict:
                     for key in self.metrics_list:
                         if key != 'reward':
@@ -166,9 +169,8 @@ class Agent(ABC):
                         self.plot_metric(self.metrics['reward'], 50)
                         # self.plot_metric(self.metrics['loss_q'], None)
                     if self.wandb:
-                        desc = {key: self.metrics[key].history[-1]
-                                for key in self.metrics_list}
-                        wandb.log(desc)
+                        new_metrics['reward'] = self.metrics['reward'].history[-1]
+                        wandb.log(new_metrics)
 
                 state = self.env.reset()
                 episode_steps = 0

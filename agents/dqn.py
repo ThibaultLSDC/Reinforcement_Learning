@@ -95,13 +95,13 @@ class DQN(Agent):
 
         state = torch.cat(batch.state)
         action = torch.cat(batch.action)
-        reward = torch.cat(batch.reward)
+        reward = torch.cat(batch.reward) / 100
         done = torch.cat(batch.done)
         next_state = torch.cat(batch.next_state)
 
-        next_value = self.target_model(next_state).max(1)[0]
-
-        expected = reward + (1 - done) * self.gamma * next_value
+        with torch.no_grad():
+            next_value = self.target_model(next_state).max(1)[0]
+            expected = reward + (1 - done) * self.gamma * next_value
 
         value = self.q_model(state).gather(1, action.unsqueeze(1))
 
