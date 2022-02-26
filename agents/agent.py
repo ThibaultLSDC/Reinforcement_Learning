@@ -95,7 +95,7 @@ class Agent(ABC):
         raise NotImplementedError(
             "Agent.save must be defined in the sub-class")
 
-    def make_episode(self, training: bool = True, render: bool = False, greedy: bool = False, plot: bool=False) -> None:
+    def make_episode(self, training: bool = True, render: bool = False, greedy: bool = False, plot: bool = False) -> None:
         """
         Runs a full episode in the agent's environment, until done is sent by the environment
         :param training: If the agent should run a learning session and improve its network(s). If False, the agent will run an episode with a greedy policy.
@@ -139,20 +139,20 @@ class Agent(ABC):
                 break
 
     @staticmethod
-    def plot_metric(metrics:Metric, avg_size: int) -> None:
+    def plot_metric(metrics: Metric, avg_size: int) -> None:
         """
         Pretty self telling, plots metric, with a sliding average of width avg_size
 
         :param metric: List containing the data to plot
         :param avg_size: if int, plots the sliding average of width avg_size, if None, no running average
         """
-        metric = metrics.history[1:]
+        metric = metrics.history[1:]  # NOTE : problem with the metrics
         plt.figure(metrics.name)
         plt.title(metrics.name)
         plt.xlabel('episodes')
         plt.ylabel(f"{metrics.name}")
         plt.plot(range(len(metric)), metric, 'b')
-        if avg_size != None:
+        if avg_size is not None:
             if len(metric) > avg_size:
                 means = np.convolve(np.array(metric), np.ones(
                     avg_size)/avg_size, mode='valid')
@@ -174,7 +174,7 @@ class Agent(ABC):
 
         for episode in range(self.n_episodes):
             if episode % 1 == 0:
-                if episode % 20 == 0:
+                if episode % 1 == 0:
                     self.make_episode(training=True, render=True, plot=True)
                 else:
                     self.make_episode(training=True, render=True, plot=False)

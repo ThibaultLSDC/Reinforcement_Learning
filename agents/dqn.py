@@ -5,7 +5,7 @@ import numpy as np
 from torch import nn
 
 from agents.agent import Agent
-from utils.memory import Memory
+from utils.memory import BasicMemory
 from agents.architectures import ModelLinear
 
 from typing import TYPE_CHECKING
@@ -19,7 +19,7 @@ class DQN(Agent):
         super(DQN, self).__init__(config)
         self.conf = config
 
-        self.memory = Memory(config.capacity)
+        self.memory = BasicMemory(config.capacity)
 
         self.q_model_shape = [self.env.observation_space.shape[0]
                               ] + config.model_shape + [self.env.action_space.n]
@@ -36,6 +36,8 @@ class DQN(Agent):
         self.update_method = config.update_method
         self.target_update = config.target_update
 
+        self.gamma = config.gamma
+
         self.tau = config.tau
 
         # configure optimizer
@@ -48,6 +50,10 @@ class DQN(Agent):
         else:
             self.optim = torch.optim.Adam(self.q_model.parameters())
 
+        self.eps_start = config.eps_start
+        self.eps_end = config.eps_end
+        self.eps_decay = config.eps_decay
+
     def act(self, state, greedy=False):
         """
         Get an action from the q_model, given the current state.
@@ -55,19 +61,15 @@ class DQN(Agent):
         """
         state = torch.tensor(state, device=self.device)
 
-        eps_end = self.conf.eps_end
-        eps_start = self.conf.eps_start
-        eps_decay = self.conf.eps_decay
-
         threshold = rd.random()
-        eps = eps_end + (eps_start - eps_end) * \
-            np.exp(-1 * self.steps_done / eps_decay)
+        self.eps = self.eps_end + (self.eps_start - self.eps_end) * \
+            np.exp(-1 * self.steps_done / self.eps_decay)
 
         if greedy:
             with torch.no_grad():
                 action = torch.argmax(self.q_model(state)).unsqueeze(0)
         else:
-            if threshold > eps:
+            if threshold > self.eps:
                 with torch.no_grad():
                     action = torch.argmax(self.q_model(state)).unsqueeze(0)
 
@@ -90,34 +92,26 @@ class DQN(Agent):
 
         batch = self.memory.transition(*zip(*transitions))
 
-        non_final_mask = torch.tensor(
-            [x is not None for x in batch.next_state])
-        non_final_next_states = torch.cat(
-            [x.unsqueeze(0).clone() for x in batch.next_state if x is not None])
+        state = torch.cat(batch.state)
+        action = torch.cat(batch.action)
+        reward = torch.cat(batch.reward)
+        done = torch.cat(batch.done)
+        next_state = torch.cat(batch.next_state)
 
-        states = torch.cat([x.unsqueeze(0).clone() for x in batch.state])
-        actions = torch.cat([x.clone()
-                            for x in batch.action]).type(torch.int64)
-        rewards = torch.cat([torch.tensor(x).unsqueeze(0)
-                            for x in batch.reward]).to(self.device)
+        next_value = self.target_model(next_state).max(1)[0]
 
-        values = self.q_model(states).gather(1, actions.unsqueeze(1))
+        expected = reward + (1 - done) * self.gamma * next_value
 
-        next_values = torch.zeros(
-            self.conf.batch_size, device=self.device, dtype=torch.float32)
-        next_values[non_final_mask] = self.target_model(
-            non_final_next_states).max(1)[0].detach()
-
-        expected = next_values * self.conf.gamma + rewards
+        value = self.q_model(state).gather(1, action.unsqueeze(1))
 
         criterion = nn.MSELoss()
 
-        loss = criterion(values.squeeze(), expected.type(torch.float32))
+        loss = criterion(value.squeeze(), expected)
 
         self.optim.zero_grad()
         loss.backward()
         for param in self.q_model.parameters():
-            param.grad.data.clamp_(-.1, .1)
+            param.grad.data.clamp_(-1, 1)
         self.optim.step()
 
         if self.update_method == 'periodic':
@@ -134,11 +128,13 @@ class DQN(Agent):
 
         return {"loss_q": loss.cpu().detach().item()}
 
-    def save(self, state, action, reward, next_state):
+    def save(self, state, action, reward, done, next_state):
         """
         Saves transition to the memory
         """
-        state = torch.tensor(state, device=self.device)
-        next_state = torch.tensor(
-            next_state, device=self.device) if next_state is not None else None
-        self.memory.store(state, action, reward, next_state)
+        state = torch.tensor(state, device=self.device).unsqueeze(0)
+        action = torch.tensor([action], device=self.device)
+        reward = torch.tensor([reward], device=self.device)
+        done = torch.tensor([done], device=self.device, dtype=int)
+        next_state = torch.tensor(next_state, device=self.device).unsqueeze(0)
+        self.memory.store(state, action, reward, done, next_state)

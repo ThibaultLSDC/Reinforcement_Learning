@@ -4,13 +4,13 @@ class GlobalConfig:
     env_id = 'CartPole-v1'
 
     # width of the models' hidden layers
-    model_shape = [64]
+    model_shape = [128]
     n_episodes = 600
-    batch_size = 128
+    batch_size = 32
 
-    plot = True
+    plot = False
     # configuring wandb
-    wandb = False
+    wandb = True
     wandb_config = {
         "model_shape": model_shape,
         "episodes": n_episodes,
@@ -25,7 +25,7 @@ class GlobalConfig:
     # torch optimizer to be used
     optim = {
         'name': 'adam',
-        'lr': 1e-3,
+        'lr': 5e-4,
     }
 
     losses = None
@@ -42,14 +42,15 @@ class DQNConfig(GlobalConfig):
     # speed for the exponential decay
     eps_decay = 5000
 
-    #
-    gamma = 0.999
+    # discount factor
+    gamma = 0.99
     # number of episodes before updating the target model
     target_update = 500
 
     update_method = 'soft'
 
-    tau = .995
+    # for soft update
+    tau = .999
 
     losses = ['q']
 
