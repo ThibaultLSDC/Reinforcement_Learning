@@ -3,8 +3,8 @@ import wandb
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
-from itertools import count
 from abc import ABC, abstractmethod
 from utils.metrics import Metric
 
@@ -41,9 +41,11 @@ class Agent(ABC):
 
         # Duration of training, in number of episodes
         self.n_episodes = config.n_episodes
+        self.n_steps = config.n_steps
+        self.pre_run_steps = config.pre_run_steps
 
         # Logs and graphics
-        # If one wants to plot the reward TODO: add possibility to plot other metrics
+        # If one wants to plot the reward
         self.plot = config.plot
 
         # wandb setup
@@ -54,10 +56,7 @@ class Agent(ABC):
             wandb.config.update(config.wandb_config)
 
         # initialize steps
-        self.steps_done = 0
-
-        # number of eps ran before training
-        self.start_eps = config.start_eps
+        self.steps_trained = 0
 
     @abstractmethod
     def act(self, state: list, greedy: bool) -> None:
@@ -95,49 +94,6 @@ class Agent(ABC):
         raise NotImplementedError(
             "Agent.save must be defined in the sub-class")
 
-    def make_episode(self, training: bool = True, render: bool = False, greedy: bool = False, plot: bool = False) -> None:
-        """
-        Runs a full episode in the agent's environment, until done is sent by the environment
-        :param training: If the agent should run a learning session and improve its network(s). If False, the agent will run an episode with a greedy policy.
-        :param render: True if the gym env should be displayed
-        """
-        if training:
-            greedy = False
-        state = self.env.reset()
-        for t in count():
-            if render:
-                self.env.render()
-            action = self.act(state, greedy)
-            next_state, reward, done, _ = self.env.step(action)
-
-            self.metrics['reward'].step(reward)
-
-            self.save(state, action, reward, done, next_state)
-
-            state = next_state
-
-            if training:
-                new_metrics = self.learn()
-                for key in self.metrics_list:
-                    if key != 'reward':
-                        self.metrics[key].step(new_metrics[key])
-                print(
-                    f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_done}, Std : {self.eps:.4f}", end='\r')
-
-            if done:
-                if training:
-                    for key in self.metrics_list:
-                        self.metrics[key].new_ep()
-
-                    if self.plot and plot:
-                        self.plot_metric(self.metrics['reward'], 50)
-                        # self.plot_metric(self.metrics['loss_q'], None)
-                    if self.wandb:
-                        desc = {key: self.metrics[key].history[-1]
-                                for key in self.metrics_list}
-                        wandb.log(desc)
-                break
-
     @staticmethod
     def plot_metric(metrics: Metric, avg_size: int) -> None:
         """
@@ -165,26 +121,54 @@ class Agent(ABC):
             display.clear_output(wait=True)
             display.display(plt.gcf())
 
-    def train(self) -> None:
-        """
-        Self telling, trains the agent over n_episodes episodes
-        """
-        for ep in range(self.start_eps):
-            self.make_episode(training=False, render=False, greedy=False)
+    def train(self, render_rate: int = 100):
 
-        for episode in range(self.n_episodes):
-            if episode % 1 == 0:
-                if episode % 1 == 0:
-                    self.make_episode(training=True, render=True, plot=True)
-                else:
-                    self.make_episode(training=True, render=True, plot=False)
-            else:
-                self.make_episode(training=True, render=False)
+        state = self.env.reset()
+        episode_steps = 0
+        n_episodes = 0
 
-    def run(self, n_runs: int) -> None:
-        """
-        Runs n_runs runs of the agent in the env, with rendering
-        :param n_runs: ...
-        """
-        for run in range(n_runs):
-            self.make_episode(training=False, render=True, greedy=True)
+        counter = tqdm(range(self.n_steps + self.pre_run_steps),
+                       desc='Pre-run phase')
+
+        for step in counter:
+            training = (step > self.pre_run_steps)
+            episode_steps += 1
+
+            if n_episodes % render_rate == 0 and training:
+                self.env.render()
+
+            action = self.act(state, False)
+            next_state, reward, done, _ = self.env.step(action)
+
+            if training:
+                self.metrics['reward'].step(reward)
+
+            self.save(state, action, reward, done, next_state)
+
+            state = next_state
+
+            if training:
+                new_metrics = self.learn()
+                if type(new_metrics) == dict:
+                    for key in self.metrics_list:
+                        if key != 'reward':
+                            self.metrics[key].step(new_metrics[key])
+                        desc = f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_trained}, Std : {self.eps:.4f}"
+                counter.set_description(desc)
+            if done:
+                if training:
+                    n_episodes += 1
+
+                    for key in self.metrics_list:
+                        self.metrics[key].new_ep()
+
+                    if self.plot:
+                        self.plot_metric(self.metrics['reward'], 50)
+                        # self.plot_metric(self.metrics['loss_q'], None)
+                    if self.wandb:
+                        desc = {key: self.metrics[key].history[-1]
+                                for key in self.metrics_list}
+                        wandb.log(desc)
+
+                state = self.env.reset()
+                episode_steps = 0

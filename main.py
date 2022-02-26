@@ -5,6 +5,6 @@ agent = DQN(DQNConfig())
 # agent = DDPG(DDPGConfig())
 # agent = TD3(TD3Config())
 
-agent.run(1)
+# agent.run(1)
 agent.train()
-agent.run(10)
+# agent.run(10)

@@ -63,7 +63,7 @@ class DQN(Agent):
 
         threshold = rd.random()
         self.eps = self.eps_end + (self.eps_start - self.eps_end) * \
-            np.exp(-1 * self.steps_done / self.eps_decay)
+            np.exp(-1 * self.steps_trained / self.eps_decay)
 
         if greedy:
             with torch.no_grad():
@@ -83,10 +83,11 @@ class DQN(Agent):
         """
         Triggers one learning iteration and returns the los for the current step
         """
-        self.steps_done += 1
 
         if len(self.memory) < self.conf.batch_size:
             return 0
+
+        self.steps_trained += 1
 
         transitions = self.memory.sample(self.conf.batch_size)
 
@@ -115,7 +116,7 @@ class DQN(Agent):
         self.optim.step()
 
         if self.update_method == 'periodic':
-            if self.steps_done % self.target_update == 0:
+            if self.steps_trained % self.target_update == 0:
                 self.target_model.load_state_dict(self.q_model.state_dict())
         elif self.update_method == 'soft':
             for phi_target, phi in zip(self.target_model.parameters(), self.q_model.parameters()):

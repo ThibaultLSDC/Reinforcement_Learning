@@ -5,15 +5,17 @@ class GlobalConfig:
 
     # width of the models' hidden layers
     model_shape = [128]
-    n_episodes = 600
-    batch_size = 32
+    n_steps = 200000
+    pre_run_steps = 20000
+    batch_size = 128
 
     plot = False
     # configuring wandb
     wandb = True
     wandb_config = {
         "model_shape": model_shape,
-        "episodes": n_episodes,
+        "steps": n_steps,
+        "prerun_steps": pre_run_steps,
         "batch_size": batch_size
     }
 
@@ -30,22 +32,20 @@ class GlobalConfig:
 
     losses = None
 
-    start_eps = 20
-
 
 class DQNConfig(GlobalConfig):
 
     name = 'dqn'
 
-    eps_start = .9
-    eps_end = .05
+    eps_start = 1.
+    eps_end = .1
     # speed for the exponential decay
     eps_decay = 5000
 
     # discount factor
     gamma = 0.99
     # number of episodes before updating the target model
-    target_update = 500
+    target_update = 1000
 
     update_method = 'soft'
 
@@ -53,6 +53,15 @@ class DQNConfig(GlobalConfig):
     tau = .999
 
     losses = ['q']
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.wandb_config['eps_start'] = self.eps_start
+        self.wandb_config['eps_end'] = self.eps_end
+        self.wandb_config['eps_decay'] = self.eps_decay
+        self.wandb_config['tau'] = self.tau
+        self.wandb_config['gamma'] = self.gamma
 
 
 class DDPGConfig(GlobalConfig):
