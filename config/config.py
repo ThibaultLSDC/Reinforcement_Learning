@@ -5,10 +5,10 @@ class GlobalConfig:
 
     # width of the models' hidden layers
     model_shape = [128]
-    n_steps = 400000
-    pre_run_steps = 50000
-    greedy_steps = 300000
-    batch_size = 32
+    n_steps = 100000
+    pre_run_steps = 5000
+    greedy_steps = 80000
+    batch_size = 64
 
     plot = False
     # configuring wandb
@@ -40,9 +40,9 @@ class DQNConfig(GlobalConfig):
     name = 'dqn'
 
     eps_start = 1.
-    eps_end = .1
+    eps_end = .05
     # speed for the exponential decay
-    eps_decay = 40000
+    eps_decay = 4000
 
     # discount factor
     gamma = 0.99
