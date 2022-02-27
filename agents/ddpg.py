@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from agents.agent import Agent
-from utils.memory import Memory
+from utils.memory import BasicMemory
 from agents.architectures import ModelLinear
 import numpy as np
 
@@ -17,7 +17,7 @@ class DDPG(Agent):
         super(DDPG, self).__init__(config)
         self.conf = config
 
-        self.memory = Memory(config.capacity)
+        self.memory = BasicMemory(config.capacity)
 
         self.obs_size = self.env.observation_space.shape[0]
         self.act_size = self.env.action_space.shape[0]
@@ -48,6 +48,7 @@ class DDPG(Agent):
         self.target_update = config.target_update
 
         self.tau = config.tau
+        self.gamma = config.gamma
 
         # configure q_optimizer
         if config.optim['name'] == 'adam':
@@ -75,18 +76,18 @@ class DDPG(Agent):
         self.std_start = config.std_start
         self.std_end = config.std_end
         self.std_decay = config.std_decay
-        self.std = self.std_end + \
+
+    @property
+    def std(self):
+        return self.std_end + \
             (self.std_start - self.std_end) * \
-            np.exp(- self.steps_done / self.std_decay)
+            np.exp(- self.steps_trained / self.std_decay)
 
     def act(self, state, greedy=False):
         """
         Get an action from the q_model, given the current state.
         state : input observation given by the environment
         """
-        self.std = self.std_end + \
-            (self.std_start - self.std_end) * \
-            np.exp(- self.steps_done / self.std_decay)
         state = torch.tensor(state, device=self.device)
 
         with torch.no_grad():
@@ -101,58 +102,48 @@ class DDPG(Agent):
         """
         Triggers one learning iteration and returns the los for the current step
         """
-        self.steps_done += 1
-
         if len(self.memory) < self.conf.batch_size:
             return 0
+
+        self.steps_trained += 1
 
         transitions = self.memory.sample(self.conf.batch_size)
 
         batch = self.memory.transition(*zip(*transitions))
 
-        non_final_mask = torch.tensor(
-            [x is not None for x in batch.next_state])
-        non_final_next_states = torch.cat(
-            [x.unsqueeze(0).clone() for x in batch.next_state if x is not None])
+        state = torch.cat(batch.state)
+        action = torch.cat(batch.action)
+        reward = torch.cat(batch.reward)
+        done = torch.cat(batch.done)
+        next_state = torch.cat(batch.next_state)
 
-        states = torch.cat([x.unsqueeze(0).clone() for x in batch.state])
-        actions = torch.tensor([x[0] for x in batch.action]).to(
-            self.device).unsqueeze(-1)
-        rewards = torch.cat([torch.tensor(x).unsqueeze(0)
-                            for x in batch.reward]).to(self.device)
+        with torch.no_grad():
+            next_action = self.ac_target_model(next_state)
+            next_value = self.q_target_model(
+                torch.cat([next_state, next_action], dim=-1)).squeeze(1)
+            expected = reward + self.gamma * (1 - done) * next_value
 
-        values = self.q_model(torch.concat([states, actions], dim=1))
-
-        next_values = torch.zeros(
-            self.conf.batch_size, device=self.device, dtype=torch.float32)
-
-        target_actions = self.ac_target_model(non_final_next_states).detach()
-        target_input = torch.concat(
-            [non_final_next_states, target_actions], dim=1)
-
-        next_values[non_final_mask] = self.q_target_model(
-            target_input).detach().squeeze()
-
-        expected = next_values * self.conf.gamma + rewards
+        value = self.q_model(torch.cat([state, action], dim=-1)).squeeze(1)
 
         criterion = nn.MSELoss()
 
-        loss1 = criterion(values.squeeze(), expected.type(torch.float32))
+        loss_q = criterion(value, expected.type(torch.float32))
 
         self.q_optim.zero_grad()
-        loss1.backward()
+        loss_q.backward()
         for param in self.q_model.parameters():
-            param.grad.data.clamp_(-.1, .1)
+            param.grad.clamp_(-.1, .1)
         self.q_optim.step()
 
-        pred_actions = self.ac_model(states)
-        loss2 = - \
-            torch.mean(self.q_model(torch.concat(
-                [states, pred_actions], dim=-1)))
+        new_action = self.ac_model(state)
+
+        loss_ac = - \
+            torch.mean(self.q_model(torch.cat([state, new_action], dim=-1)))
+
         self.ac_optim.zero_grad()
-        loss2.backward()
+        loss_ac.backward()
         for param in self.ac_model.parameters():
-            param.grad.data.clamp_(-.1, .1)
+            param.grad.clamp_(-.1, .1)
         self.ac_optim.step()
 
         if self.update_method == 'periodic':
@@ -172,13 +163,15 @@ class DDPG(Agent):
             raise NotImplementedError(
                 "Update method not implemented, 'periodic' and 'soft' are implemented for the moment")
 
-        return {"loss_q": loss1.cpu().detach().item(), "loss_ac": loss2.cpu().detach().item()}
+        return {"loss_q": loss_q.cpu().detach().item(), "loss_ac": loss_ac.cpu().detach().item()}
 
-    def save(self, state, action, reward, next_state):
+    def save(self, state, action, reward, done, next_state):
         """
         Saves transition to the memory
         """
-        state = torch.tensor(state, device=self.device)
-        next_state = torch.tensor(
-            next_state, device=self.device) if next_state is not None else None
-        self.memory.store(state, action, reward, next_state)
+        state = torch.tensor(state, device=self.device).unsqueeze(0)
+        action = torch.tensor([action], device=self.device)
+        reward = torch.tensor([reward], device=self.device)
+        done = torch.tensor([done], device=self.device, dtype=int)
+        next_state = torch.tensor(next_state, device=self.device).unsqueeze(0)
+        self.memory.store(state, action, reward, done, next_state)

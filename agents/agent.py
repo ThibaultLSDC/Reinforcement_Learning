@@ -121,7 +121,7 @@ class Agent(ABC):
             display.clear_output(wait=True)
             display.display(plt.gcf())
 
-    def train(self, render_rate: int = 100):
+    def train(self, render_rate: int = 1):
 
         state = self.env.reset()
         episode_steps = 0
@@ -150,14 +150,14 @@ class Agent(ABC):
 
             if training:
                 new_metrics = self.learn()
-                if not done:
-                    wandb.log(new_metrics)
                 if type(new_metrics) == dict:
+                    if not done and self.wandb:
+                        wandb.log(new_metrics)
                     for key in self.metrics_list:
                         if key != 'reward':
                             self.metrics[key].step(new_metrics[key])
-                        desc = f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_trained}, Std : {self.eps:.4f}"
-                counter.set_description(desc)
+                        desc = f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_trained}, Std : {self.std:.4f}"
+                    counter.set_description(desc)
             if done:
                 if training:
                     n_episodes += 1

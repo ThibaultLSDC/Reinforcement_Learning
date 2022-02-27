@@ -1,14 +1,14 @@
 class GlobalConfig:
 
     # ID of the game to beat in gym
-    env_id = 'CartPole-v1'
+    env_id = 'Pendulum-v1'
 
     # width of the models' hidden layers
-    model_shape = [128]
-    n_steps = 100000
-    pre_run_steps = 5000
-    greedy_steps = 80000
-    batch_size = 64
+    model_shape = [32]
+    n_steps = 400000
+    pre_run_steps = 10000
+    greedy_steps = 380000
+    batch_size = 128
 
     plot = False
     # configuring wandb
@@ -29,7 +29,7 @@ class GlobalConfig:
     # torch optimizer to be used
     optim = {
         'name': 'adam',
-        'lr': 5e-4,
+        'lr': 1e-3,
     }
 
     losses = None
@@ -39,7 +39,7 @@ class DQNConfig(GlobalConfig):
 
     name = 'dqn'
 
-    eps_start = 1.
+    eps_start = .5
     eps_end = .05
     # speed for the exponential decay
     eps_decay = 4000
@@ -69,15 +69,15 @@ class DQNConfig(GlobalConfig):
 class DDPGConfig(GlobalConfig):
     name = 'ddpg'
 
-    gamma = .999
+    gamma = .99
 
     target_update = 500
     update_method = 'soft'
-    tau = .999
+    tau = .995
 
     std_start = 1
     std_end = .05
-    std_decay = 20000
+    std_decay = 10000
 
     losses = ['q', 'ac']
 

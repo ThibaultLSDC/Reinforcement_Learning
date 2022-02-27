@@ -62,14 +62,14 @@ class DQN(Agent):
         state = torch.tensor(state, device=self.device)
 
         threshold = rd.random()
-        self.eps = self.eps_end + (self.eps_start - self.eps_end) * \
+        self.std = self.eps_end + (self.eps_start - self.eps_end) * \
             np.exp(-1 * self.steps_trained / self.eps_decay)
 
         if greedy:
             with torch.no_grad():
                 action = torch.argmax(self.q_model(state)).unsqueeze(0)
         else:
-            if threshold > self.eps:
+            if threshold > self.std:
                 with torch.no_grad():
                     action = torch.argmax(self.q_model(state)).unsqueeze(0)
 
