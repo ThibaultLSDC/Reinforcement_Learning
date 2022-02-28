@@ -3,7 +3,7 @@ from torch import nn
 
 from agents.agent import Agent
 from utils.memory import BasicMemory
-from agents.architectures import ModelLinear
+from agents.architectures import ModelLinear, ModelBounded
 import numpy as np
 
 from typing import TYPE_CHECKING
@@ -22,9 +22,13 @@ class DDPG(Agent):
         self.obs_size = self.env.observation_space.shape[0]
         self.act_size = self.env.action_space.shape[0]
 
+        self.ac_bounds = [self.env.action_space.low[0],
+                          self.env.action_space.high[0]]
+
         self.q_model_shape = [self.obs_size +
                               self.act_size] + config.model_shape + [1]
-        self.ac_model_shape = [self.obs_size] + config.model_shape + [1]
+        self.ac_model_shape = [self.obs_size] + \
+            config.model_shape + [self.act_size]
 
         # make q_model and q_target models and put them on selected device
         self.device = torch.device(
@@ -38,8 +42,10 @@ class DDPG(Agent):
         # make ac and ac_target models and put them on selected device
         self.device = torch.device(
             config.device if torch.cuda.is_available() else 'cpu')
-        self.ac_model = ModelLinear(self.ac_model_shape).to(self.device)
-        self.ac_target_model = ModelLinear(self.ac_model_shape).to(self.device)
+        self.ac_model = ModelBounded(
+            self.ac_model_shape, self.ac_bounds[1]).to(self.device)
+        self.ac_target_model = ModelBounded(
+            self.ac_model_shape, self.ac_bounds[1]).to(self.device)
 
         # copying q_model's data into the target model
         self.ac_target_model.load_state_dict(self.ac_model.state_dict())
@@ -70,9 +76,6 @@ class DDPG(Agent):
         else:
             self.ac_optim = torch.optim.Adam(self.ac_model.parameters())
 
-        self.ac_bounds = [self.env.action_space.low[0],
-                          self.env.action_space.high[0]]
-
         self.std_start = config.std_start
         self.std_end = config.std_end
         self.std_decay = config.std_decay
@@ -96,14 +99,14 @@ class DDPG(Agent):
             action = (action + torch.randn_like(action) * self.std
                       ).clamp(self.ac_bounds[0], self.ac_bounds[1])
 
-        return [action.item()]
+        return [x for x in action.squeeze(0).cpu()]
 
     def learn(self):
         """
         Triggers one learning iteration and returns the los for the current step
         """
         if len(self.memory) < self.conf.batch_size:
-            return 0
+            return {"loss_q": 0}
 
         self.steps_trained += 1
 

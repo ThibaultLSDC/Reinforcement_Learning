@@ -138,7 +138,10 @@ class Agent(ABC):
             if n_episodes % render_rate == 0 and training:
                 self.env.render()
 
-            action = self.act(state, greedy=greedy)
+            if training:
+                action = self.act(state, greedy=greedy)
+            else:
+                action = self.env.action_space.sample()
             next_state, reward, done, _ = self.env.step(action)
 
             if training:
@@ -153,10 +156,10 @@ class Agent(ABC):
                 if type(new_metrics) == dict:
                     if not done and self.wandb:
                         wandb.log(new_metrics)
-                    for key in self.metrics_list:
+                    for key in new_metrics.keys():
                         if key != 'reward':
                             self.metrics[key].step(new_metrics[key])
-                        desc = f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_trained}, Std : {self.std:.4f}"
+                        desc = f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_trained}, Std : {self.action_std:.4f}"
                     counter.set_description(desc)
             if done:
                 if training:
