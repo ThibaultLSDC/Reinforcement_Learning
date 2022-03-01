@@ -121,7 +121,7 @@ class Agent(ABC):
             display.clear_output(wait=True)
             display.display(plt.gcf())
 
-    def train(self, render_rate: int = 1):
+    def train(self, render_rate: int = 20):
 
         state = self.env.reset()
         episode_steps = 0
@@ -129,6 +129,8 @@ class Agent(ABC):
 
         counter = tqdm(range(self.n_steps + self.pre_run_steps),
                        desc='Pre-run phase')
+
+        total_reward = 0
 
         for step in counter:
             training = (step > self.pre_run_steps)
@@ -145,35 +147,37 @@ class Agent(ABC):
             next_state, reward, done, _ = self.env.step(action)
 
             if training:
-                self.metrics['reward'].step(reward)
+                # self.metrics['reward'].step(reward)
+                total_reward += reward
 
             self.save(state, action, reward, done, next_state)
 
             state = next_state
 
-            if training:
+            if training and not done:
                 new_metrics = self.learn()
                 if type(new_metrics) == dict:
-                    if not done and self.wandb:
+                    if self.wandb:
                         wandb.log(new_metrics)
-                    for key in new_metrics.keys():
-                        if key != 'reward':
-                            self.metrics[key].step(new_metrics[key])
-                        desc = f"Episode : {len(self.metrics['reward'].history)}, Step {self.steps_trained}, Std : {self.action_std:.4f}"
-                    counter.set_description(desc)
+                    # for key in new_metrics.keys():
+                    #     if key != 'reward':
+                    #         self.metrics[key].step(new_metrics[key])
+                desc = f"Episode : {n_episodes}, Step {self.steps_trained}"
+                counter.set_description(desc)
             if done:
                 if training:
                     n_episodes += 1
 
-                    for key in self.metrics_list:
-                        self.metrics[key].new_ep()
+                    # for key in self.metrics_list:
+                    #     self.metrics[key].new_ep()
 
-                    if self.plot:
-                        self.plot_metric(self.metrics['reward'], 50)
-                        # self.plot_metric(self.metrics['loss_q'], None)
+                    # if self.plot:
+                    #     self.plot_metric(self.metrics['reward'], 50)
+                    # self.plot_metric(self.metrics['loss_q'], None)
                     if self.wandb:
-                        new_metrics['reward'] = self.metrics['reward'].history[-1]
+                        new_metrics['reward'] = total_reward
                         wandb.log(new_metrics)
+                    total_reward = 0
 
                 state = self.env.reset()
                 episode_steps = 0

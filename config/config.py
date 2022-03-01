@@ -1,14 +1,14 @@
 class GlobalConfig:
 
     # ID of the game to beat in gym
-    env_id = 'MountainCarContinuous-v0'
+    env_id = 'Pendulum-v1'
 
     # width of the models' hidden layers
-    model_shape = [256]
+    model_shape = [128]
     n_steps = 400000
-    pre_run_steps = 100000
+    pre_run_steps = 10000
     greedy_steps = 380000
-    batch_size = 256
+    batch_size = 128
 
     plot = False
     # configuring wandb
@@ -18,18 +18,19 @@ class GlobalConfig:
         "steps": n_steps,
         "prerun_steps": pre_run_steps,
         "greedy_steps": greedy_steps,
-        "batch_size": batch_size
+        "batch_size": batch_size,
+        "details": "enforced action bound"
     }
 
     # size of the memory
-    capacity = 500000
+    capacity = 150000
 
     # torch device to use for the model
     device = 'cuda'
     # torch optimizer to be used
     optim = {
         'name': 'adam',
-        'lr': 1e-4,
+        'lr': 3e-4,
     }
 
     losses = None
@@ -124,3 +125,28 @@ class TD3Config(GlobalConfig):
         self.wandb_config['gamma'] = self.gamma
         self.wandb_config['target_std'] = self.target_std
         self.wandb_config['policy_delay'] = self.policy_delay
+
+
+class SACConfig(GlobalConfig):
+    name = 'sac'
+
+    # discount value
+    gamma = .99
+
+    # entropy weight
+    alpha = .2
+    # soft update rate
+    tau = .995
+    # std clamping
+    max_std = 2
+    min_std = -20
+
+    losses = ['q1', 'q2', 'ac']
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.wandb_config['tau'] = self.tau
+        self.wandb_config['gamma'] = self.gamma
+        self.wandb_config['alpha'] = self.alpha
+        self.wandb_config['std_bounds'] = [self.min_std, self.max_std]
