@@ -2,14 +2,21 @@ from torch import nn, tanh
 
 
 class ModelLinear(nn.Module):
-    def __init__(self, data_sizes: list) -> None:
+    def __init__(self, data_sizes: list, zero_last: bool = True) -> None:
         super(ModelLinear, self).__init__()
         self.data_sizes = data_sizes
         for i in range(1, len(data_sizes)):
+            print('a')
             setattr(self, f"layer_{i}", nn.Linear(
                 data_sizes[i-1], data_sizes[i]))
             if not (i == len(data_sizes)-1):
                 setattr(self, f"act_{i}", nn.ReLU())
+
+        if zero_last:
+            getattr(
+                self, f"layer_{len(self.data_sizes)-1}").weight.data.fill_(0.)
+            getattr(
+                self, f"layer_{len(self.data_sizes)-1}").bias.data.fill_(0.)
 
     def forward(self, x):
         for i in range(1, len(self.data_sizes)):
@@ -20,7 +27,7 @@ class ModelLinear(nn.Module):
 
 
 class ModelBounded(nn.Module):
-    def __init__(self, data_sizes: list, output_amp) -> None:
+    def __init__(self, data_sizes: list, output_amp, zero_last: bool = True) -> None:
         super(ModelBounded, self).__init__()
         self.data_sizes = data_sizes
         for i in range(1, len(data_sizes)):
@@ -30,6 +37,12 @@ class ModelBounded(nn.Module):
                 setattr(self, f"act_{i}", nn.ReLU())
 
         self.output_amp = output_amp
+
+        if zero_last:
+            getattr(
+                self, f"layer_{len(self.data_sizes)-1}").weight.data.fill_(0.)
+            getattr(
+                self, f"layer_{len(self.data_sizes)-1}").bias.data.fill_(0.)
 
     def forward(self, x):
         for i in range(1, len(self.data_sizes)):
