@@ -19,7 +19,7 @@ class GlobalConfig:
         "prerun_steps": pre_run_steps,
         "greedy_steps": greedy_steps,
         "batch_size": batch_size,
-        "details": "enforced action bound"
+        "details": "zeroed last layers on each network"
     }
 
     # size of the memory
