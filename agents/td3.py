@@ -7,45 +7,41 @@ from torch import nn
 from agents.agent import Agent
 from utils.memory import BasicMemory
 from agents.architectures import ModelLinear, ModelBounded
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from config.config import TD3Config
+from config import TD3Config
 
 
 class TD3(Agent):
-    def __init__(self, config: 'TD3Config') -> None:
-        super(TD3, self).__init__(config)
-        self.config = config
+    def __init__(self, *args) -> None:
+        super(TD3, self).__init__(TD3Config, *args)
+        self.config = TD3Config
 
-        self.name = config.name
+        self.name = TD3Config['name']
 
         # replay memory
-        self.memory = BasicMemory(config.capacity)
+        self.memory = BasicMemory(TD3Config['capacity'])
 
         # batch_size to sample from the memory
-        self.batch_size = config.batch_size
+        self.batch_size = TD3Config['batch_size']
 
         # torch gpu optimization
-        self.device = config.device
+        self.device = TD3Config['device']
 
         # discount
-        self.gamma = config.gamma
+        self.gamma = TD3Config['gamma']
         # polyak soft update
-        self.tau = config.tau
+        self.tau = TD3Config['tau']
 
         # action stddev
-        self.std_start = config.std_start
-        self.std_end = config.std_end
-        self.std_decay = config.std_decay
+        self.std_start = TD3Config['std_start']
+        self.std_end = TD3Config['std_end']
+        self.std_decay = TD3Config['std_decay']
 
         # policy training delay
-        self.policy_delay = config.policy_delay
+        self.policy_delay = TD3Config['policy_delay']
 
         # target smoothing and clipping
-        self.target_std = config.target_std
-        self.target_clipping = config.target_clipping
+        self.target_std = TD3Config['target_std']
+        self.target_clipping = TD3Config['target_clipping']
 
         # building model shapes
         self.state_size = self.env.observation_space.shape[0]
@@ -54,9 +50,9 @@ class TD3(Agent):
             self.env.action_space.high).to(self.device)
 
         critic_shape = [self.state_size + self.action_size] + \
-            config.model_shape + [1]
+            TD3Config['model_shape'] + [1]
         actor_shape = [self.state_size] + \
-            config.model_shape + [self.action_size]
+            TD3Config['model_shape'] + [self.action_size]
 
         # building models
         self.critic1 = ModelLinear(critic_shape).to(self.device)
@@ -70,22 +66,25 @@ class TD3(Agent):
         self.target_actor = deepcopy(self.actor)
 
         # optimizers
-        if config.optim['name'] == 'adam':
+        if TD3Config['optim'] == 'adam':
             self.actor_optim = torch.optim.Adam(
-                self.actor.parameters(), config.optim['lr'])
+                self.actor.parameters(), TD3Config['lr'])
             self.critic_optim = torch.optim.Adam(list(self.critic1.parameters(
-            )) + list(self.critic2.parameters()), config.optim['lr'])
-        elif config.optim['name'] == 'sgd':
+            )) + list(self.critic2.parameters()), TD3Config['lr'])
+        elif TD3Config['optim'] == 'sgd':
             self.actor_optim = torch.optim.SGD(
-                self.actor.parameters(), config.optim['lr'])
+                self.actor.parameters(), TD3Config['lr'])
             self.critic_optim = torch.optim.SGD(list(self.critic1.parameters(
-            )) + list(self.critic2.parameters()), config.optim['lr'])
+            )) + list(self.critic2.parameters()), TD3Config['lr'])
         else:
             raise NotImplementedError(
                 "Optimizer names should be in ['adam', 'sgd']")
 
     @property
     def action_std(self):
+        """
+        Exploration std
+        """
         return self.std_end + (self.std_start - self.std_end) * np.exp(- self.steps_trained / self.std_decay)
 
     def act(self, state, greedy: bool = False) -> list:

@@ -6,33 +6,33 @@ from utils.memory import BasicMemory
 from agents.architectures import ModelLinear, ModelBounded
 import numpy as np
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from config.config import DDPGConfig
+from config import DDPGConfig
 
 
 class DDPG(Agent):
-    def __init__(self, config: 'DDPGConfig') -> None:
-        super(DDPG, self).__init__(config)
-        self.conf = config
+    def __init__(self, *args) -> None:
+        super(DDPG, self).__init__(DDPGConfig, *args)
+        self.conf = DDPGConfig
 
-        self.memory = BasicMemory(config.capacity)
+        self.memory = BasicMemory(DDPGConfig['capacity'])
+        self.batch_size = DDPGConfig['batch_size']
 
+        # env caracteristics
         self.obs_size = self.env.observation_space.shape[0]
         self.act_size = self.env.action_space.shape[0]
 
         self.ac_bounds = [self.env.action_space.low[0],
                           self.env.action_space.high[0]]
 
+        # building full model shapes
         self.q_model_shape = [self.obs_size +
-                              self.act_size] + config.model_shape + [1]
+                              self.act_size] + DDPGConfig['model_shape'] + [1]
         self.ac_model_shape = [self.obs_size] + \
-            config.model_shape + [self.act_size]
+            DDPGConfig['model_shape'] + [self.act_size]
 
         # make q_model and q_target models and put them on selected device
         self.device = torch.device(
-            config.device if torch.cuda.is_available() else 'cpu')
+            DDPGConfig['device'] if torch.cuda.is_available() else 'cpu')
         self.q_model = ModelLinear(self.q_model_shape).to(self.device)
         self.q_target_model = ModelLinear(self.q_model_shape).to(self.device)
 
@@ -40,48 +40,44 @@ class DDPG(Agent):
         self.q_target_model.load_state_dict(self.q_model.state_dict())
 
         # make ac and ac_target models and put them on selected device
-        self.device = torch.device(
-            config.device if torch.cuda.is_available() else 'cpu')
         self.ac_model = ModelBounded(
             self.ac_model_shape, self.ac_bounds[1]).to(self.device)
         self.ac_target_model = ModelBounded(
             self.ac_model_shape, self.ac_bounds[1]).to(self.device)
 
-        # copying q_model's data into the target model
+        # copying ac_model's data into the target model
         self.ac_target_model.load_state_dict(self.ac_model.state_dict())
 
-        self.update_method = config.update_method
-        self.target_update = config.target_update
+        # soft update parameter
+        self.tau = DDPGConfig['tau']
+        # discount factor
+        self.gamma = DDPGConfig['gamma']
 
-        self.tau = config.tau
-        self.gamma = config.gamma
-
-        # configure q_optimizer
-        if config.optim['name'] == 'adam':
+        # DDPGConfigure optimizers
+        if DDPGConfig['optim'] == 'adam':
             self.q_optim = torch.optim.Adam(
-                self.q_model.parameters(), config.optim['lr'])
-        elif config.optim['name'] == 'sgd':
+                self.q_model.parameters(), DDPGConfig['lr'])
+            self.ac_optim = torch.optim.Adam(
+                self.ac_model.parameters(), DDPGConfig['lr'])
+        elif DDPGConfig['optim'] == 'sgd':
             self.q_optim = torch.optim.SGD(
-                self.q_model.parameters(), config.optim['lr'])
+                self.q_model.parameters(), DDPGConfig['lr'])
+            self.ac_optim = torch.optim.SGD(
+                self.ac_model.parameters(), DDPGConfig['lr'])
         else:
             self.q_optim = torch.optim.Adam(self.q_model.parameters())
-
-        # configure ac_optimizer
-        if config.optim['name'] == 'adam':
-            self.ac_optim = torch.optim.Adam(
-                self.ac_model.parameters(), config.optim['lr'])
-        elif config.optim['name'] == 'sgd':
-            self.ac_optim = torch.optim.SGD(
-                self.ac_model.parameters(), config.optim['lr'])
-        else:
             self.ac_optim = torch.optim.Adam(self.ac_model.parameters())
 
-        self.std_start = config.std_start
-        self.std_end = config.std_end
-        self.std_decay = config.std_decay
+        # exploration std parameters
+        self.std_start = DDPGConfig['std_start']
+        self.std_end = DDPGConfig['std_end']
+        self.std_decay = DDPGConfig['std_decay']
 
     @property
     def std(self):
+        """
+        Just the decaying exploration std
+        """
         return self.std_end + \
             (self.std_start - self.std_end) * \
             np.exp(- self.steps_trained / self.std_decay)
@@ -103,14 +99,14 @@ class DDPG(Agent):
 
     def learn(self):
         """
-        Triggers one learning iteration and returns the los for the current step
+        Triggers one learning iteration and returns the loss for the current step
         """
-        if len(self.memory) < self.conf.batch_size:
+        if len(self.memory) < self.batch_size:
             return {"loss_q": 0}
 
         self.steps_trained += 1
 
-        transitions = self.memory.sample(self.conf.batch_size)
+        transitions = self.memory.sample(self.batch_size)
 
         batch = self.memory.transition(*zip(*transitions))
 
@@ -149,22 +145,12 @@ class DDPG(Agent):
             param.grad.clamp_(-.1, .1)
         self.ac_optim.step()
 
-        if self.update_method == 'periodic':
-            if self.steps_done % self.target_update == 0:
-                self.q_target_model.load_state_dict(self.q_model.state_dict())
-                self.ac_target_model.load_state_dict(
-                    self.ac_model.state_dict())
-        elif self.update_method == 'soft':
-            for phi_target, phi in zip(self.q_target_model.parameters(), self.q_model.parameters()):
-                phi_target.data.copy_(
-                    self.tau * phi_target.data + (1-self.tau) * phi.data)
-            for phi_target, phi in zip(self.ac_target_model.parameters(), self.ac_model.parameters()):
-                phi_target.data.copy_(
-                    self.tau * phi_target.data + (1-self.tau) * phi.data)
-
-        else:
-            raise NotImplementedError(
-                "Update method not implemented, 'periodic' and 'soft' are implemented for the moment")
+        for phi_target, phi in zip(self.q_target_model.parameters(), self.q_model.parameters()):
+            phi_target.data.copy_(
+                self.tau * phi_target.data + (1-self.tau) * phi.data)
+        for phi_target, phi in zip(self.ac_target_model.parameters(), self.ac_model.parameters()):
+            phi_target.data.copy_(
+                self.tau * phi_target.data + (1-self.tau) * phi.data)
 
         return {"loss_q": loss_q.cpu().detach().item(), "loss_ac": loss_ac.cpu().detach().item()}
 

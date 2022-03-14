@@ -6,7 +6,6 @@ class ModelLinear(nn.Module):
         super(ModelLinear, self).__init__()
         self.data_sizes = data_sizes
         for i in range(1, len(data_sizes)):
-            print('a')
             setattr(self, f"layer_{i}", nn.Linear(
                 data_sizes[i-1], data_sizes[i]))
             if not (i == len(data_sizes)-1):

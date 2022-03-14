@@ -7,52 +7,49 @@ from torch import nn
 from agents.agent import Agent
 from utils.memory import BasicMemory
 from agents.architectures import ModelLinear
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from config.config import DQNConfig
+from config import DQNConfig
 
 
 class DQN(Agent):
-    def __init__(self, config: 'DQNConfig') -> None:
-        super(DQN, self).__init__(config)
-        self.conf = config
+    def __init__(self, *args) -> None:
+        super(DQN, self).__init__(DQNConfig, *args)
+        self.conf = DQNConfig
 
-        self.memory = BasicMemory(config.capacity)
+        self.memory = BasicMemory(DQNConfig['capacity'])
+        self.batch_size = DQNConfig['batch_size']
 
         self.q_model_shape = [self.env.observation_space.shape[0]
-                              ] + config.model_shape + [self.env.action_space.n]
+                              ] + DQNConfig['model_shape'] + [self.env.action_space.n]
 
         # make q and target models and put them on selected device
         self.device = torch.device(
-            config.device if torch.cuda.is_available() else 'cpu')
+            DQNConfig['device'] if torch.cuda.is_available() else 'cpu')
         self.q_model = ModelLinear(self.q_model_shape).to(self.device)
         self.target_model = ModelLinear(self.q_model_shape).to(self.device)
 
         # copying q_model's data into the target model
         self.target_model.load_state_dict(self.q_model.state_dict())
 
-        self.update_method = config.update_method
-        self.target_update = config.target_update
+        self.update_method = DQNConfig['update_method']
+        self.target_update = DQNConfig['target_update']
 
-        self.gamma = config.gamma
+        self.gamma = DQNConfig['gamma']
 
-        self.tau = config.tau
+        self.tau = DQNConfig['tau']
 
-        # configure optimizer
-        if config.optim['name'] == 'adam':
+        # DQNConfigure optimizer
+        if DQNConfig['optim'] == 'adam':
             self.optim = torch.optim.Adam(
-                self.q_model.parameters(), config.optim['lr'])
-        elif config.optim['name'] == 'sgd':
+                self.q_model.parameters(), DQNConfig['lr'])
+        elif DQNConfig['optim'] == 'sgd':
             self.optim = torch.optim.SGD(
-                self.q_model.parameters(), config.optim['lr'])
+                self.q_model.parameters(), DQNConfig['lr'])
         else:
             self.optim = torch.optim.Adam(self.q_model.parameters())
 
-        self.eps_start = config.eps_start
-        self.eps_end = config.eps_end
-        self.eps_decay = config.eps_decay
+        self.eps_start = DQNConfig['eps_start']
+        self.eps_end = DQNConfig['eps_end']
+        self.eps_decay = DQNConfig['eps_decay']
 
     def act(self, state, greedy=False):
         """
@@ -84,12 +81,12 @@ class DQN(Agent):
         Triggers one learning iteration and returns the los for the current step
         """
 
-        if len(self.memory) < self.conf.batch_size:
+        if len(self.memory) < self.batch_size:
             return 0
 
         self.steps_trained += 1
 
-        transitions = self.memory.sample(self.conf.batch_size)
+        transitions = self.memory.sample(self.batch_size)
 
         batch = self.memory.transition(*zip(*transitions))
 

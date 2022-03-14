@@ -7,38 +7,35 @@ import torch.distributions as td
 from agents.agent import Agent
 from utils.memory import BasicMemory
 from agents.architectures import ModelLinear
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from config.config import SACConfig
+from config import SACConfig
 
 
 class SAC(Agent):
-    def __init__(self, config: 'SACConfig') -> None:
-        super(SAC, self).__init__(config)
-        self.config = config
+    def __init__(self, *args) -> None:
+        print(*args)
+        super(SAC, self).__init__(SACConfig, *args)
+        self.config = SACConfig
 
-        self.name = config.name
+        self.name = SACConfig['name']
 
         # replay memory
-        self.memory = BasicMemory(config.capacity)
+        self.memory = BasicMemory(SACConfig['capacity'])
 
         # batch_size to sample from the memory
-        self.batch_size = config.batch_size
+        self.batch_size = SACConfig['batch_size']
 
         # torch gpu optimization
-        self.device = config.device
+        self.device = SACConfig['device']
 
         # discount
-        self.gamma = config.gamma
+        self.gamma = SACConfig['gamma']
         # polyak soft update
-        self.tau = config.tau
+        self.tau = SACConfig['tau']
         # entropy weight
-        self.alpha = config.alpha
+        self.alpha = SACConfig['alpha']
         # std clamp
-        self.max_std = config.max_std
-        self.min_std = config.min_std
+        self.max_std = SACConfig['max_std']
+        self.min_std = SACConfig['min_std']
 
         # building model shapes
         self.state_size = self.env.observation_space.shape[0]
@@ -47,9 +44,9 @@ class SAC(Agent):
             self.env.action_space.high).to(self.device)
 
         critic_shape = [self.state_size + self.action_size] + \
-            config.model_shape + [1]
+            SACConfig['model_shape'] + [1]
         actor_shape = [self.state_size] + \
-            config.model_shape + [2 * self.action_size]
+            SACConfig['model_shape'] + [2 * self.action_size]
 
         # building models
         self.critic1 = ModelLinear(critic_shape).to(self.device)
@@ -61,16 +58,16 @@ class SAC(Agent):
         self.actor = ModelLinear(actor_shape).to(self.device)
 
         # optimizers
-        if config.optim['name'] == 'adam':
+        if SACConfig['optim'] == 'adam':
             self.actor_optim = torch.optim.Adam(
-                self.actor.parameters(), config.optim['lr'])
+                self.actor.parameters(), SACConfig['lr'])
             self.critic_optim = torch.optim.Adam(list(self.critic1.parameters(
-            )) + list(self.critic2.parameters()), config.optim['lr'])
-        elif config.optim['name'] == 'sgd':
+            )) + list(self.critic2.parameters()), SACConfig['lr'])
+        elif SACConfig['optim'] == 'sgd':
             self.actor_optim = torch.optim.SGD(
-                self.actor.parameters(), config.optim['lr'])
+                self.actor.parameters(), SACConfig['lr'])
             self.critic_optim = torch.optim.SGD(list(self.critic1.parameters(
-            )) + list(self.critic2.parameters()), config.optim['lr'])
+            )) + list(self.critic2.parameters()), SACConfig['lr'])
         else:
             raise NotImplementedError(
                 "Optimizer names should be in ['adam', 'sgd']")
@@ -93,7 +90,7 @@ class SAC(Agent):
 
     def learn(self):
         """
-        Triggers one learning iteration and returns the los for the current step
+        Triggers one learning iteration and returns the loss for the current step
         :return metrics: dictionnary containing all the metrics computed in the current step, for logs
         """
         if len(self.memory) < self.batch_size:
