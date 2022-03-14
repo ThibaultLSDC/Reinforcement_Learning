@@ -49,3 +49,19 @@ class ModelBounded(nn.Module):
             if not (i == len(self.data_sizes)-1):
                 x = getattr(self, f"act_{i}")(x)
         return tanh(x) * self.output_amp
+
+
+class TwinModel(nn.Module):
+    def __init__(self, data_sizes: list, zero_last: bool = True) -> None:
+        super(TwinModel, self).__init__()
+        self.data_sizes = data_sizes
+        self.model1 = ModelLinear(data_sizes, zero_last)
+        self.model2 = ModelLinear(data_sizes, zero_last)
+
+    def forward(self, x):
+        x1 = self.model1(x)
+        x2 = self.model2(x)
+        return x1, x2
+
+    def single(self, x):
+        return self.model1(x)

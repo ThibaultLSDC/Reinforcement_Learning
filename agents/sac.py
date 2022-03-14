@@ -6,7 +6,7 @@ import torch.distributions as td
 
 from agents.agent import Agent
 from utils.memory import BasicMemory
-from agents.architectures import ModelLinear
+from utils.architectures import ModelLinear
 from config import SACConfig
 
 

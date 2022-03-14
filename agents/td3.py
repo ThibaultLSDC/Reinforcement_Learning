@@ -6,7 +6,7 @@ from torch import nn
 
 from agents.agent import Agent
 from utils.memory import BasicMemory
-from agents.architectures import ModelLinear, ModelBounded
+from utils.architectures import ModelBounded, TwinModel
 from config import TD3Config
 
 
@@ -55,11 +55,8 @@ class TD3(Agent):
             TD3Config['model_shape'] + [self.action_size]
 
         # building models
-        self.critic1 = ModelLinear(critic_shape).to(self.device)
-        self.target_critic1 = deepcopy(self.critic1)
-
-        self.critic2 = ModelLinear(critic_shape).to(self.device)
-        self.target_critic2 = deepcopy(self.critic2)
+        self.critic = TwinModel(critic_shape).to(self.device)
+        self.target_critic = deepcopy(self.critic)
 
         self.actor = ModelBounded(
             actor_shape, self.action_bound).to(self.device)
@@ -69,13 +66,13 @@ class TD3(Agent):
         if TD3Config['optim'] == 'adam':
             self.actor_optim = torch.optim.Adam(
                 self.actor.parameters(), TD3Config['lr'])
-            self.critic_optim = torch.optim.Adam(list(self.critic1.parameters(
-            )) + list(self.critic2.parameters()), TD3Config['lr'])
+            self.critic_optim = torch.optim.Adam(
+                self.critic.parameters(), TD3Config['lr'])
         elif TD3Config['optim'] == 'sgd':
             self.actor_optim = torch.optim.SGD(
                 self.actor.parameters(), TD3Config['lr'])
-            self.critic_optim = torch.optim.SGD(list(self.critic1.parameters(
-            )) + list(self.critic2.parameters()), TD3Config['lr'])
+            self.critic_optim = torch.optim.SGD(
+                self.critic.parameters(), TD3Config['lr'])
         else:
             raise NotImplementedError(
                 "Optimizer names should be in ['adam', 'sgd']")
@@ -139,22 +136,20 @@ class TD3(Agent):
                 next_action + next_action_noise).clamp(-self.action_bound, self.action_bound)
 
             # target value from minimum of critic 1 and 2
-            target_value1 = self.target_critic1(
-                torch.cat([next_state, next_action], dim=-1))
-            target_value2 = self.target_critic2(
+            target_value1, target_value2 = self.target_critic(
                 torch.cat([next_state, next_action], dim=-1))
             target_value = torch.min(target_value1, target_value2).squeeze()
 
             expected_value = reward + self.gamma * (1 - done) * target_value
 
         # compute Q values
-        value1 = self.critic1(torch.cat([state, action], dim=-1)).squeeze()
-        value2 = self.critic2(torch.cat([state, action], dim=-1)).squeeze()
+        value1, value2 = self.critic(
+            torch.cat([state, action], dim=-1))
 
         # compute Q losses
         criterion = nn.MSELoss()
-        loss_q1 = criterion(value1, expected_value)
-        loss_q2 = criterion(value2, expected_value)
+        loss_q1 = criterion(value1.squeeze(), expected_value)
+        loss_q2 = criterion(value2.squeeze(), expected_value)
 
         loss_critic = loss_q1 + loss_q2
 
@@ -169,7 +164,8 @@ class TD3(Agent):
             new_action = self.actor(state)
             # compute Q value to maximize
             loss_actor = - \
-                self.critic1(torch.cat([state, new_action], dim=-1)).mean()
+                self.critic.single(
+                    torch.cat([state, new_action], dim=-1)).mean()
 
             # actor optimization step
             self.actor_optim.zero_grad()
@@ -180,10 +176,7 @@ class TD3(Agent):
             for param, t_param in zip(self.actor.parameters(), self.target_actor.parameters()):
                 t_param.data.copy_(self.tau * t_param.data +
                                    (1 - self.tau) * param.data)
-            for param, t_param in zip(self.critic1.parameters(), self.target_critic1.parameters()):
-                t_param.data.copy_(self.tau * t_param.data +
-                                   (1 - self.tau) * param.data)
-            for param, t_param in zip(self.critic2.parameters(), self.target_critic2.parameters()):
+            for param, t_param in zip(self.critic.parameters(), self.target_critic.parameters()):
                 t_param.data.copy_(self.tau * t_param.data +
                                    (1 - self.tau) * param.data)
 

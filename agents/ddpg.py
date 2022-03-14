@@ -3,7 +3,7 @@ from torch import nn
 
 from agents.agent import Agent
 from utils.memory import BasicMemory
-from agents.architectures import ModelLinear, ModelBounded
+from utils.architectures import ModelLinear, ModelBounded
 import numpy as np
 
 from config import DDPGConfig
