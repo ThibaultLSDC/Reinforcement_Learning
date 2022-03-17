@@ -21,6 +21,7 @@ class Agent(ABC):
 
         # Generate the agent's environment
         self.env = gym.make(env_id)
+        self.env_id = env_id
 
         # Duration of training, in number of episodes
         self.n_steps = config['n_steps']
@@ -71,7 +72,7 @@ class Agent(ABC):
         # wandb setup
         if log_to_wandb:
             wandb.init(
-                project=f"{self.config['name']}_{self.config['env_id']}", entity="thibaultlsdc")
+                project=f"{self.config['name']}_{self.env_id}", entity="thibaultlsdc")
             wandb.config.update(self.config)
 
         # pre-run steps

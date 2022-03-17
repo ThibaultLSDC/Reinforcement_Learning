@@ -1,10 +1,10 @@
 GlobalConfig = {
     # width of the models' hidden layers
     'model_shape': [128],
-    'n_steps': 400000,
-    'pre_run_steps': 10000,
-    'greedy_steps': 380000,
-    'batch_size': 128,
+    'n_steps': 1000000,
+    'pre_run_steps': 100000,
+    'greedy_steps': 980000,
+    'batch_size': 64,
 
     # size of the memory
     'capacity': 150000,
@@ -13,7 +13,7 @@ GlobalConfig = {
     'device': 'cuda',
     # torch optimizer to be used
     'optim': 'adam',
-    'lr': 3e-4,
+    'lr': 1e-3,
 }
 
 DQNConfig = {

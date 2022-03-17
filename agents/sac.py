@@ -2,17 +2,15 @@ import torch
 from copy import deepcopy
 
 from torch import nn
-import torch.distributions as td
 
 from agents.agent import Agent
 from utils.memory import BasicMemory
-from utils.architectures import ModelLinear
+from utils.architectures import TwinModel, GaussianModel
 from config import SACConfig
 
 
 class SAC(Agent):
     def __init__(self, *args) -> None:
-        print(*args)
         super(SAC, self).__init__(SACConfig, *args)
         self.config = SACConfig
 
@@ -46,28 +44,26 @@ class SAC(Agent):
         critic_shape = [self.state_size + self.action_size] + \
             SACConfig['model_shape'] + [1]
         actor_shape = [self.state_size] + \
-            SACConfig['model_shape'] + [2 * self.action_size]
+            SACConfig['model_shape'] + [self.action_size]
 
         # building models
-        self.critic1 = ModelLinear(critic_shape).to(self.device)
-        self.target_critic1 = deepcopy(self.critic1)
+        self.critic = TwinModel(critic_shape).to(self.device)
+        self.target_critic = deepcopy(self.critic)
 
-        self.critic2 = ModelLinear(critic_shape).to(self.device)
-        self.target_critic2 = deepcopy(self.critic2)
-
-        self.actor = ModelLinear(actor_shape).to(self.device)
+        self.actor = GaussianModel(
+            actor_shape, self.action_bound, self.min_std, self.max_std).to(self.device)
 
         # optimizers
         if SACConfig['optim'] == 'adam':
             self.actor_optim = torch.optim.Adam(
                 self.actor.parameters(), SACConfig['lr'])
-            self.critic_optim = torch.optim.Adam(list(self.critic1.parameters(
-            )) + list(self.critic2.parameters()), SACConfig['lr'])
+            self.critic_optim = torch.optim.Adam(
+                self.critic.parameters(), SACConfig['lr'])
         elif SACConfig['optim'] == 'sgd':
             self.actor_optim = torch.optim.SGD(
                 self.actor.parameters(), SACConfig['lr'])
-            self.critic_optim = torch.optim.SGD(list(self.critic1.parameters(
-            )) + list(self.critic2.parameters()), SACConfig['lr'])
+            self.critic_optim = torch.optim.SGD(
+                self.critic.parameters(), SACConfig['lr'])
         else:
             raise NotImplementedError(
                 "Optimizer names should be in ['adam', 'sgd']")
@@ -82,10 +78,7 @@ class SAC(Agent):
         state = torch.tensor(state, device=self.device)
 
         with torch.no_grad():
-            logits = self.actor(state)
-            logits = self.actor(state).view(self.action_size, -1)
-            action = self.action_bound * torch.tanh(
-                td.Normal(logits[:, 0], torch.exp(logits[:, 1].clamp(self.min_std, self.max_std))).sample())
+            action, _, _ = self.actor.sample(state)
         return [x for x in action.cpu()]
 
     def learn(self):
@@ -95,8 +88,6 @@ class SAC(Agent):
         """
         if len(self.memory) < self.batch_size:
             return {}
-
-        torch.autograd.set_detect_anomaly(True)
 
         self.steps_trained += 1
 
@@ -116,40 +107,23 @@ class SAC(Agent):
         next_state = torch.cat(batch.next_state)
 
         with torch.no_grad():
-            # get logits from actor
-            logits = self.actor(next_state).view(
-                self.batch_size, self.action_size, -1)
-            # make distribution
-            dist = td.Normal(logits[:, :, 0], torch.exp(
-                logits[:, :, 1].clamp(self.min_std, self.max_std)))
-
-            mean_std_logs = dist.stddev.mean()
-
-            # get sample action, compute associated log probabilities
-            next_action = dist.sample()
-            log_prob = dist.log_prob(next_action).squeeze()
-            next_action = torch.tanh(next_action)
-            log_prob -= torch.log(self.action_bound *
-                                  (1 - next_action.squeeze().pow(2)) + 1e-6)
-            next_action = next_action * self.action_bound
+            # get sample action/log_prob from actor
+            next_action, log_prob, _ = self.actor.sample(next_state)
 
             # compute target value from sampled action
-            target_value1 = self.target_critic1(
+            target_value1, target_value2 = self.target_critic(
                 torch.cat([next_state, next_action], dim=-1))
-            target_value2 = self.target_critic2(
-                torch.cat([next_state, next_action], dim=-1))
-            target_value = torch.min(target_value1, target_value2).squeeze()
+            target_value = torch.min(
+                target_value1, target_value2).squeeze() - self.alpha * log_prob
             # compute expected value
-            expected_value = reward + self.gamma * \
-                (1 - done) * (target_value - self.alpha * log_prob)
+            expected_value = reward + self.gamma * (1 - done) * target_value
 
-        value1 = self.critic1(torch.cat([state, action], dim=-1)).squeeze()
-        value2 = self.critic2(torch.cat([state, action], dim=-1)).squeeze()
+        value1, value2 = self.critic(torch.cat([state, action], dim=-1))
 
         criterion = nn.MSELoss()
 
-        loss_q1 = criterion(value1, expected_value)
-        loss_q2 = criterion(value2, expected_value)
+        loss_q1 = criterion(value1.squeeze(), expected_value)
+        loss_q2 = criterion(value2.squeeze(), expected_value)
 
         loss_critic = loss_q1 + loss_q2
 
@@ -157,31 +131,19 @@ class SAC(Agent):
         loss_critic.backward()
         self.critic_optim.step()
 
-        new_logits = self.actor(state).view(
-            self.batch_size, self.action_size, -1)
-        new_dist = td.Normal(
-            new_logits[:, :, 0], torch.exp(new_logits[:, :, 1].clamp(self.min_std, self.max_std)))
-        new_action = new_dist.rsample()
-        new_log_prob = dist.log_prob(new_action).squeeze()
-        new_action = torch.tanh(new_action)
-        new_log_prob -= torch.log(self.action_bound *
-                                  (1 - new_action.squeeze().pow(2)) + 1e-6)
-        new_action = new_action * self.action_bound
+        new_action, new_log_prob, logs = self.actor.sample(state)
 
-        new_value1 = self.critic1(torch.cat([state, new_action], dim=-1))
-        new_value2 = self.critic2(torch.cat([state, new_action], dim=-1))
+        new_value1, new_value2 = self.critic(
+            torch.cat([state, new_action], dim=-1))
         new_value = torch.min(new_value1, new_value2).squeeze()
 
-        loss_actor = - (new_value - self.alpha * new_log_prob).mean()
+        loss_actor = (self.alpha * new_log_prob - new_value).mean()
 
         self.actor_optim.zero_grad()
         loss_actor.backward()
         self.actor_optim.step()
 
-        for param, t_param in zip(self.critic1.parameters(), self.target_critic1.parameters()):
-            t_param.data.copy_(self.tau * t_param.data +
-                               (1 - self.tau) * param.data)
-        for param, t_param in zip(self.critic2.parameters(), self.target_critic2.parameters()):
+        for param, t_param in zip(self.critic.parameters(), self.target_critic.parameters()):
             t_param.data.copy_(self.tau * t_param.data +
                                (1 - self.tau) * param.data)
 
@@ -189,9 +151,9 @@ class SAC(Agent):
             "loss_q1": loss_q1.detach().cpu(),
             "loss_q2": loss_q2.detach().cpu(),
             "loss_ac": loss_actor.detach().cpu(),
-            "mean_std": mean_std_logs.detach().cpu(),
             "min_q_value": new_value.mean().detach().cpu(),
-            "log_prob": new_log_prob.mean().detach().cpu()
+            "log_prob": new_log_prob.mean().detach().cpu(),
+            "unsquashed_log_prob": logs.mean().detach().cpu()
         }
 
     def save(self, state, action, reward, done, next_state):
