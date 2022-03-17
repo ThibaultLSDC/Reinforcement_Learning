@@ -77,8 +77,12 @@ class SAC(Agent):
         """
         state = torch.tensor(state, device=self.device)
 
-        with torch.no_grad():
-            action, _, _ = self.actor.sample(state)
+        if not greedy:
+            with torch.no_grad():
+                action, _, _, _, _ = self.actor.sample(state)
+        else:
+            with torch.no_grad():
+                _, _, _, action, _ = self.actor.sample(state)
         return [x for x in action.cpu()]
 
     def learn(self):
@@ -108,7 +112,7 @@ class SAC(Agent):
 
         with torch.no_grad():
             # get sample action/log_prob from actor
-            next_action, log_prob, _ = self.actor.sample(next_state)
+            next_action, log_prob, _, mean, _ = self.actor.sample(next_state)
 
             # compute target value from sampled action
             target_value1, target_value2 = self.target_critic(
@@ -131,7 +135,7 @@ class SAC(Agent):
         loss_critic.backward()
         self.critic_optim.step()
 
-        new_action, new_log_prob, logs = self.actor.sample(state)
+        new_action, new_log_prob, logs, _, mean_std = self.actor.sample(state)
 
         new_value1, new_value2 = self.critic(
             torch.cat([state, new_action], dim=-1))
@@ -153,7 +157,8 @@ class SAC(Agent):
             "loss_ac": loss_actor.detach().cpu(),
             "min_q_value": new_value.mean().detach().cpu(),
             "log_prob": new_log_prob.mean().detach().cpu(),
-            "unsquashed_log_prob": logs.mean().detach().cpu()
+            "unsquashed_log_prob": logs.mean().detach().cpu(),
+            "mean_std": mean_std.detach().cpu()
         }
 
     def save(self, state, action, reward, done, next_state):

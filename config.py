@@ -3,7 +3,7 @@ GlobalConfig = {
     'model_shape': [128],
     'n_steps': 1000000,
     'pre_run_steps': 100000,
-    'greedy_steps': 980000,
+    'greedy_steps': 900000,
     'batch_size': 64,
 
     # size of the memory
@@ -86,7 +86,7 @@ SACConfig = {
     'tau': .995,
 
     # entropy weight
-    'alpha': .2,
+    'alpha': .1,
 
     # std clamping
     'max_std': 2,

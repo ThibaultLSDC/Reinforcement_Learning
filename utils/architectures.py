@@ -112,4 +112,6 @@ class GaussianModel(nn.Module):
 
         log_probs = log_probs.sum(-1)
 
-        return action * self.output_amp, log_probs, log_prob
+        mean = tanh(mu) * self.output_amp
+
+        return action * self.output_amp, log_probs, log_prob, mean, std.mean()
