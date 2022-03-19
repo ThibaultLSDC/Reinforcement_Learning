@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 # WandB setup
 if TYPE_CHECKING:
-    from config import GlobalConfig
+    from config.off_policy_config import GlobalConfig
 
 
 class Agent(ABC):

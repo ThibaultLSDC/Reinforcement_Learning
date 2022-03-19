@@ -1,12 +1,12 @@
 import torch
 from torch import nn
 
-from agents.agent import Agent
+from off_policy.agent import Agent
 from utils.memory import BasicMemory
 from utils.architectures import ModelLinear, ModelBounded
 import numpy as np
 
-from config import DDPGConfig
+from config.off_policy_config import DDPGConfig
 
 
 class DDPG(Agent):

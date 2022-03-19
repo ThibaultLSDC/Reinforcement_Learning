@@ -3,10 +3,10 @@ from copy import deepcopy
 
 from torch import nn
 
-from agents.agent import Agent
+from off_policy.agent import Agent
 from utils.memory import BasicMemory
 from utils.architectures import TwinModel, GaussianModel
-from config import SACConfig
+from config.off_policy_config import SACConfig
 
 
 class SAC(Agent):

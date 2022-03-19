@@ -1,8 +1,8 @@
 
-from agents.dqn import DQN
-from agents.ddpg import DDPG
-from agents.td3 import TD3
-from agents.sac import SAC
+from off_policy.dqn import DQN
+from off_policy.ddpg import DDPG
+from off_policy.td3 import TD3
+from off_policy.sac import SAC
 
 from argparse import ArgumentParser
 
