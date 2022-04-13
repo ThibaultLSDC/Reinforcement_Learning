@@ -5,9 +5,11 @@ from tqdm import tqdm
 
 from abc import ABC, abstractmethod
 
+from utils.memory import SarsaBuffer
+
 # WandB setup
 if TYPE_CHECKING:
-    from config.off_policy_config import GlobalConfig
+    from config.on_policy_config import GlobalConfig
 
 
 class Agent(ABC):
@@ -23,20 +25,14 @@ class Agent(ABC):
         self.env = gym.make(env_id)
         self.env_id = env_id
 
-        # Duration of training, in number of episodes
-        self.n_steps = config['n_steps']
-        self.pre_run_steps = config['pre_run_steps']
-        self.greedy_steps = config['greedy_steps']
-
-        # initialize steps
-        self.steps_trained = 0
+        # ReplayBuffer
+        self.buffer = SarsaBuffer(config.buffer_capacity)
 
     @abstractmethod
     def act(self, state: list, greedy: bool) -> None:
         """
         Fetches an action from the agent, given an input
         :param state: observation vector given by the environment's .step() method. Must be given as received.
-
         """
         raise NotImplementedError("Agent.act must be defined in the sub-class")
 
@@ -75,20 +71,6 @@ class Agent(ABC):
                 project=f"{self.config['name']}_{self.env_id}", entity="thibaultlsdc")
             wandb.config.update(self.config)
 
-        # pre-run steps
-        state = self.env.reset()
-        for step in range(self.pre_run_steps):
-            # sample random actions
-            action = self.env.action_space.sample()
-            next_state, reward, done, _ = self.env.step(action)
-            # save the random transitions
-            self.save(state, action, reward, done, next_state)
-            state = next_state
-            if done:
-                state = self.env.reset()
-
-        print(f"Sampled {self.pre_run_steps} steps, starting training...")
-
         # episodes counter
         n_episodes = 0
 
@@ -112,7 +94,7 @@ class Agent(ABC):
             action = self.act(state, greedy=greedy)
             next_state, reward, done, _ = self.env.step(action)
             total_reward += reward
-            self.save(state, action, reward, done, next_state)
+            self.save(state, action, reward, done, next_state, next_action)
             state = next_state
 
             # the agent learns at each step #TODO: train every n_steps
