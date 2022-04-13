@@ -68,6 +68,15 @@ class SAC(Agent):
             raise NotImplementedError(
                 "Optimizer names should be in ['adam', 'sgd']")
 
+        if self.config['autotune']:
+            self.log_alpha = torch.zeros(
+                (1,), requires_grad=True, device=self.device)
+            self.min_entropy = - \
+                torch.prod(torch.Tensor(
+                    self.env.action_space.shape).to(self.device)).item()
+            self.alpha_optim = torch.optim.Adam(
+                [self.log_alpha], lr=self.config['alpha_lr'])
+
     def act(self, state, greedy: bool = False) -> list:
         """
         Get an action from the q_model, given the current state.
@@ -147,6 +156,16 @@ class SAC(Agent):
         loss_actor.backward()
         self.actor_optim.step()
 
+        if self.config['autotune']:
+            alpha_loss = - (self.log_alpha * (new_log_prob +
+                            self.min_entropy).detach()).mean()
+
+            self.alpha_optim.zero_grad()
+            alpha_loss.backward()
+            self.alpha_optim.step()
+
+            self.alpha = self.log_alpha.exp()
+
         for param, t_param in zip(self.critic.parameters(), self.target_critic.parameters()):
             t_param.data.copy_(self.tau * t_param.data +
                                (1 - self.tau) * param.data)
@@ -158,7 +177,8 @@ class SAC(Agent):
             "min_q_value": new_value.mean().detach().cpu(),
             "log_prob": new_log_prob.mean().detach().cpu(),
             "unsquashed_log_prob": logs.mean().detach().cpu(),
-            "mean_std": mean_std.detach().cpu()
+            "mean_std": mean_std.detach().cpu(),
+            "alpha": self.alpha.detach().cpu().item()
         }
 
     def save(self, state, action, reward, done, next_state):

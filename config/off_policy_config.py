@@ -4,7 +4,7 @@ GlobalConfig = {
     'n_steps': 1000000,
     'pre_run_steps': 100000,
     'greedy_steps': 900000,
-    'batch_size': 64,
+    'batch_size': 256,
 
     # size of the memory
     'capacity': 150000,
@@ -91,5 +91,9 @@ SACConfig = {
     # std clamping
     'max_std': 2,
     'min_std': -20,
+
+    # temperature tuning
+    'autotune': True,
+    'alpha_lr': 1e-3
 }
 SACConfig = SACConfig | GlobalConfig

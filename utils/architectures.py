@@ -103,6 +103,7 @@ class GaussianModel(nn.Module):
 
         normal = Normal(mu, std)
         action = normal.rsample()
+
         log_prob = normal.log_prob(action)
 
         action = tanh(action)
@@ -110,7 +111,7 @@ class GaussianModel(nn.Module):
         log_probs = log_prob - \
             log(self.output_amp * (1 - action.pow(2)) + 1e-9)
 
-        log_probs = log_probs.sum(-1)
+        log_probs = log_probs.sum(1, keepdim=True)
 
         mean = tanh(mu) * self.output_amp
 
