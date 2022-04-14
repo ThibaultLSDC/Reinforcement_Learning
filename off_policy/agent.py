@@ -9,6 +9,8 @@ from abc import ABC, abstractmethod
 if TYPE_CHECKING:
     from config.off_policy_config import GlobalConfig
 
+from time import time
+
 
 class Agent(ABC):
     def __init__(self, config: 'GlobalConfig', env_id: str) -> None:
@@ -75,9 +77,12 @@ class Agent(ABC):
                 project=f"{self.config['name']}_{self.env_id}", entity="thibaultlsdc")
             wandb.config.update(self.config)
 
+        # tqdm loop
+        counter = tqdm(range(self.pre_run_steps), desc='Pre-run phase')
+
         # pre-run steps
         state = self.env.reset()
-        for step in range(self.pre_run_steps):
+        for step in counter:
             # sample random actions
             action = self.env.action_space.sample()
             next_state, reward, done, _ = self.env.step(action)
@@ -93,7 +98,7 @@ class Agent(ABC):
         n_episodes = 0
 
         # tqdm loop
-        counter = tqdm(range(self.n_steps), desc='Pre-run phase')
+        counter = tqdm(range(self.n_steps), desc="Episode : 0, Step 0")
 
         # initialize counts and env
         state = self.env.reset()
@@ -108,15 +113,31 @@ class Agent(ABC):
                 self.env.render()
 
             # by the end of the training, the agent is set to greedy
-            greedy = (step > self.pre_run_steps + self.greedy_steps)
+            greedy = (step > self.n_steps - self.greedy_steps)
+
+            top = time()
             action = self.act(state, greedy=greedy)
+            act_time = time() - top
+
             next_state, reward, done, _ = self.env.step(action)
             total_reward += reward
+
+            top = time()
             self.save(state, action, reward, done, next_state)
+            save_time = time() - top
+
             state = next_state
 
             # the agent learns at each step #TODO: train every n_steps
+            top = time()
             new_metrics = self.learn()
+            learn_time = time() - top
+
+            # timers
+            new_metrics["act_time"] = act_time
+            new_metrics["save_time"] = save_time
+            new_metrics["learn_time"] = learn_time
+
             # tqdm description
             desc = f"Episode : {n_episodes}, Step {self.steps_trained}"
             counter.set_description(desc)

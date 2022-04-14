@@ -63,7 +63,7 @@ class Agent(ABC):
         raise NotImplementedError(
             "Agent.save must be defined in the sub-class")
 
-    def train(self, render_rate: int = 20, log_to_wandb: bool = False):
+    def train(self, render_rate: int = 20, log_to_wandb: bool = False, epochs):
 
         # wandb setup
         if log_to_wandb:
@@ -74,36 +74,11 @@ class Agent(ABC):
         # episodes counter
         n_episodes = 0
 
-        # tqdm loop
-        counter = tqdm(range(self.n_steps), desc='Pre-run phase')
-
-        # initialize counts and env
         state = self.env.reset()
-        episode_steps = 0
-        total_reward = 0
 
-        for step in counter:
-            episode_steps += 1
+        for step in range(optim_steps)
 
-            # render every few episodes
-            if n_episodes % render_rate == 0:
-                self.env.render()
-
-            # by the end of the training, the agent is set to greedy
-            greedy = (step > self.pre_run_steps + self.greedy_steps)
-            action = self.act(state, greedy=greedy)
-            next_state, reward, done, _ = self.env.step(action)
-            total_reward += reward
-            self.save(state, action, reward, done, next_state, next_action)
-            state = next_state
-
-            # the agent learns at each step #TODO: train every n_steps
-            new_metrics = self.learn()
-            # tqdm description
-            desc = f"Episode : {n_episodes}, Step {self.steps_trained}"
-            counter.set_description(desc)
-
-            if done:
+           if done:
                 # iter counter, reset variables
                 n_episodes += 1
 

@@ -8,6 +8,8 @@ from utils.memory import BasicMemory
 from utils.architectures import TwinModel, GaussianModel
 from config.off_policy_config import SACConfig
 
+from time import time
+
 
 class SAC(Agent):
     def __init__(self, *args) -> None:
@@ -88,10 +90,10 @@ class SAC(Agent):
 
         if not greedy:
             with torch.no_grad():
-                action, _, _, _, _ = self.actor.sample(state)
+                action, _, _, _, _ = self.actor.sample(state.float())
         else:
             with torch.no_grad():
-                _, _, _, action, _ = self.actor.sample(state)
+                _, _, _, action, _ = self.actor.sample(state.float())
         return [x for x in action.cpu()]
 
     def learn(self):
@@ -105,23 +107,31 @@ class SAC(Agent):
         self.steps_trained += 1
 
         # sample batch from replay buffer
+        top = time()
         transitions = self.memory.sample(self.batch_size)
+        sample_time = time() - top
 
         # from batch of transitions to transition of batches
+        top = time()
         batch = self.memory.transition(*zip(*transitions))
+        batch_time = time() - top
 
         # # reward transform : dampening negative rewards for more daring agent
         # def reward_transform(x): return torch.max(x, 10*x)
 
-        state = torch.cat(batch.state)
-        action = torch.cat(batch.action)
-        reward = torch.cat(batch.reward)
-        done = torch.cat(batch.done)
-        next_state = torch.cat(batch.next_state)
+        top = time()
+        state = torch.cat(batch.state).to(self.device)
+        action = torch.cat(batch.action).to(self.device)
+        reward = torch.cat(batch.reward).to(self.device)
+        done = torch.cat(batch.done).to(self.device)
+        next_state = torch.cat(batch.next_state).to(self.device)
+        cat_time = time() - top
 
+        top = time()
         with torch.no_grad():
             # get sample action/log_prob from actor
-            next_action, log_prob, _, mean, _ = self.actor.sample(next_state)
+            next_action, log_prob, _, mean, _ = self.actor.sample(
+                next_state.float())
 
             # compute target value from sampled action
             target_value1, target_value2 = self.target_critic(
@@ -144,7 +154,11 @@ class SAC(Agent):
         loss_critic.backward()
         self.critic_optim.step()
 
-        new_action, new_log_prob, logs, _, mean_std = self.actor.sample(state)
+        value_learn_time = time() - top
+
+        top = time()
+        new_action, new_log_prob, logs, _, mean_std = self.actor.sample(
+            state.float())
 
         new_value1, new_value2 = self.critic(
             torch.cat([state, new_action], dim=-1))
@@ -155,8 +169,10 @@ class SAC(Agent):
         self.actor_optim.zero_grad()
         loss_actor.backward()
         self.actor_optim.step()
+        action_learn_time = time() - top
 
         if self.config['autotune']:
+            top = time()
             alpha_loss = - (self.log_alpha * (new_log_prob +
                             self.min_entropy).detach()).mean()
 
@@ -165,10 +181,13 @@ class SAC(Agent):
             self.alpha_optim.step()
 
             self.alpha = self.log_alpha.exp()
+            alpha_time = time() - top
 
+        top = time()
         for param, t_param in zip(self.critic.parameters(), self.target_critic.parameters()):
             t_param.data.copy_(self.tau * t_param.data +
                                (1 - self.tau) * param.data)
+        update_time = time() - top
 
         return {
             "loss_q1": loss_q1.detach().cpu(),
@@ -178,7 +197,14 @@ class SAC(Agent):
             "log_prob": new_log_prob.mean().detach().cpu(),
             "unsquashed_log_prob": logs.mean().detach().cpu(),
             "mean_std": mean_std.detach().cpu(),
-            "alpha": self.alpha.detach().cpu().item()
+            "alpha": self.alpha.detach().cpu().item(),
+            "sample_time": sample_time,
+            "batch_time": batch_time,
+            "cat_time": cat_time,
+            "value_learn_time": value_learn_time,
+            "action_learn_time": action_learn_time,
+            "alpha_time": alpha_time,
+            "update_time": update_time
         }
 
     def save(self, state, action, reward, done, next_state):
@@ -186,10 +212,10 @@ class SAC(Agent):
         Saves transition to the memory
         :args: all the informations of the transition, given by the env's step
         """
-        state = torch.tensor(state, device=self.device).unsqueeze(0)
-        action = torch.tensor([action], device=self.device)
+        state = torch.tensor(state, device='cpu').unsqueeze(0)
+        action = torch.tensor(action, device='cpu').unsqueeze(0)
         reward = torch.tensor(
-            [reward], device=self.device, dtype=torch.float32)
-        done = torch.tensor([done], device=self.device, dtype=torch.float32)
-        next_state = torch.tensor(next_state, device=self.device).unsqueeze(0)
+            [reward], device='cpu', dtype=torch.float32)
+        done = torch.tensor([done], device='cpu', dtype=torch.float32)
+        next_state = torch.tensor(next_state, device='cpu').unsqueeze(0)
         self.memory.store(state, action, reward, done, next_state)

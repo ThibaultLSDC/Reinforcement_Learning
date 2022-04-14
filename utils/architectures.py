@@ -60,12 +60,12 @@ class TwinModel(nn.Module):
         self.model2 = ModelLinear(data_sizes, zero_last)
 
     def forward(self, x):
-        x1 = self.model1(x)
-        x2 = self.model2(x)
+        x1 = self.model1(x.float())
+        x2 = self.model2(x.float())
         return x1, x2
 
     def single(self, x):
-        return self.model1(x)
+        return self.model1(x.float())
 
 
 class GaussianModel(nn.Module):
@@ -74,11 +74,11 @@ class GaussianModel(nn.Module):
         self.data_sizes = data_sizes
         for i in range(1, len(data_sizes)-1):
             setattr(self, f"layer_{i}", nn.Linear(
-                data_sizes[i-1], data_sizes[i]))
+                data_sizes[i-1], data_sizes[i]).float())
             setattr(self, f"act_{i}", nn.ReLU())
 
-        self.mu = nn.Linear(data_sizes[-2], data_sizes[-1])
-        self.log_std = nn.Linear(data_sizes[-2], data_sizes[-1])
+        self.mu = nn.Linear(data_sizes[-2], data_sizes[-1]).float()
+        self.log_std = nn.Linear(data_sizes[-2], data_sizes[-1]).float()
 
         self.output_amp = output_amp
         self.min_log_std = min_log_std
@@ -111,7 +111,7 @@ class GaussianModel(nn.Module):
         log_probs = log_prob - \
             log(self.output_amp * (1 - action.pow(2)) + 1e-9)
 
-        log_probs = log_probs.sum(1, keepdim=True)
+        log_probs = log_probs.sum(-1)
 
         mean = tanh(mu) * self.output_amp
 

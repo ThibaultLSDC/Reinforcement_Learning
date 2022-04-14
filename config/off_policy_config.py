@@ -1,9 +1,9 @@
 GlobalConfig = {
     # width of the models' hidden layers
-    'model_shape': [128],
-    'n_steps': 1000000,
-    'pre_run_steps': 100000,
-    'greedy_steps': 900000,
+    'model_shape': [256, 256],
+    'n_steps': 3000000,
+    'pre_run_steps': 50000,
+    'greedy_steps': 100000,
     'batch_size': 256,
 
     # size of the memory
@@ -13,7 +13,7 @@ GlobalConfig = {
     'device': 'cuda',
     # torch optimizer to be used
     'optim': 'adam',
-    'lr': 1e-3,
+    'lr': 3e-4,
 }
 
 DQNConfig = {
@@ -94,6 +94,6 @@ SACConfig = {
 
     # temperature tuning
     'autotune': True,
-    'alpha_lr': 1e-3
+    'alpha_lr': 3e-4
 }
 SACConfig = SACConfig | GlobalConfig
