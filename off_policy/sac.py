@@ -1,5 +1,4 @@
 import torch
-import os
 from copy import deepcopy
 
 from torch import nn
@@ -79,7 +78,7 @@ class SAC(Agent):
                     self.env.action_space.shape).to(self.device)).item()
             self.alpha_optim = torch.optim.Adam(
                 [self.log_alpha], lr=self.config['alpha_lr'])
-        
+
         if self.config['eval']:
             try:
                 self.load_model("/latest")
@@ -229,32 +228,34 @@ class SAC(Agent):
 
     def get_state_dict(self, step, reward):
         return {
-                    'actor_state_dict': self.actor.state_dict(),
-                    'critic_state_dict': self.critic.state_dict(),
-                    'actor_opt_state_dict': self.actor_optim.state_dict(),
-                    'critic_opt_state_dict': self.critic_optim.state_dict(),
-                    'reward': reward, 'step': step
-                }
+            'actor_state_dict': self.actor.state_dict(),
+            'critic_state_dict': self.critic.state_dict(),
+            'actor_opt_state_dict': self.actor_optim.state_dict(),
+            'critic_opt_state_dict': self.critic_optim.state_dict(),
+            'reward': reward, 'step': step
+        }
 
     def save_model(self, step, reward):
-        
+
         state_dict = self.get_state_dict(step, reward)
-        
+
         try:
             best_ckpt = torch.load(self.dir_save + "/best")
             if best_ckpt['reward'] < reward:
-                print(f"Saving best model with {reward} reward")
+                print(f"Saving best model with {reward} reward at step {step}")
                 torch.save(state_dict, self.dir_save + "/best")
         except FileNotFoundError:
             torch.save(state_dict, self.dir_save + "/best")
-        
+
         torch.save(state_dict, self.dir_save + f"/{step}_steps")
-        torch.save(state_dict, self.dir_save + f"/latest")
-    
+        torch.save(state_dict, self.dir_save + "/latest")
+
     def load_model(self, path):
         loaded_state_dict = torch.load(self.dir_save + path)
         self.actor.load_state_dict(loaded_state_dict['actor_state_dict'])
         self.critic.load_state_dict(loaded_state_dict['critic_state_dict'])
-        self.actor_optim.load_state_dict(loaded_state_dict['actor_opt_state_dict'])
-        self.critic_optim.load_state_dict(loaded_state_dict['critic_opt_state_dict'])
+        self.actor_optim.load_state_dict(
+            loaded_state_dict['actor_opt_state_dict'])
+        self.critic_optim.load_state_dict(
+            loaded_state_dict['critic_opt_state_dict'])
         return loaded_state_dict['step']

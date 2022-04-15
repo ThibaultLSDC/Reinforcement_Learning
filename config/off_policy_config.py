@@ -1,16 +1,16 @@
 GlobalConfig = {
     # width of the models' hidden layers
-    'model_shape': [128],
+    'model_shape': [256, 256],
     'n_steps': 3000000,
-    'pre_run_steps': 5000,
+    'pre_run_steps': 1000,
     'greedy_steps': 100000,
-    'batch_size': 128,
+    'batch_size': 256,
 
     # size of the memory
-    'capacity': 150000,
+    'capacity': 1000000,
 
     # torch device to use for the model
-    'device': 'cpu',
+    'device': 'cuda',
     # torch optimizer to be used
     'optim': 'adam',
     'lr': 3e-4,
@@ -89,8 +89,8 @@ SACConfig = {
     'alpha': .1,
 
     # std clamping
-    'max_std': 2,
-    'min_std': -20,
+    'max_std': 1,
+    'min_std': -4,
 
     # temperature tuning
     'autotune': True,

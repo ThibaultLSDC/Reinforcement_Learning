@@ -1,5 +1,4 @@
 from typing import TYPE_CHECKING
-from lockfile import AlreadyLocked
 import wandb
 import gym
 from tqdm import tqdm
@@ -39,7 +38,7 @@ class Agent(ABC):
         self.dir_save = f"./models/{config['name']}/{env_id}/{run_id}"
         self.run_id = run_id
         # assert (not os.path.exists(self.dir_save)), "run_id already taken"
-        if not os.path.exists(self.dir_save):
+        if not os.path.exists(self.dir_save) and config['eval']:
             os.makedirs(self.dir_save)
 
     @abstractmethod
@@ -77,7 +76,7 @@ class Agent(ABC):
         """
         raise NotImplementedError(
             "Agent.store must be defined in the sub-class")
-    
+
     @abstractmethod
     def save_model(
         self,
@@ -87,7 +86,8 @@ class Agent(ABC):
         """
         Saves model checkpoints to path
         """
-        raise NotImplementedError("Agent.save_model must be defined in the sub-class")
+        raise NotImplementedError(
+            "Agent.save_model must be defined in the sub-class")
 
     @abstractmethod
     def load_model(
@@ -97,10 +97,11 @@ class Agent(ABC):
         """
         Loads model checkpoints from path
         """
-        raise NotImplementedError("Agent.load_model must be defined in the sub-class")
+        raise NotImplementedError(
+            "Agent.load_model must be defined in the sub-class")
 
     def train(self, render_rate: int = 20, log_to_wandb: bool = False):
-        
+
         if os.path.exists(self.dir_save) and self.config['eval']:
             print('Starting from already trained model')
             self.steps_trained += self.load_model("/latest")
@@ -187,7 +188,7 @@ class Agent(ABC):
 
             if log_to_wandb:
                 wandb.log(new_metrics)
-            
+
             if self.config['eval'] and self.steps_trained % self.config['eval_rate'] == 0:
                 self.eval()
 
