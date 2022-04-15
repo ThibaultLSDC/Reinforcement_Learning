@@ -31,15 +31,15 @@ class BasicMemory:
         return len(self.storage)
 
 
-class SarsaBuffer:
+class Buffer:
     def __init__(self, capacity: int) -> None:
         """
-        SARDSA buffer
+        Buffer
         """
         self.storage = deque([], maxlen=capacity)
         self.transition = namedtuple(
             'Transition',
-            ('state', 'action', 'reward', 'done', 'next_state', 'next_action')
+            ('state', 'action', 'reward', 'done', 'log_prob')
         )
 
     def store(self, *args) -> None:

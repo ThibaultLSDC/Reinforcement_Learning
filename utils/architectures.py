@@ -110,6 +110,7 @@ class GaussianModel(nn.Module):
         # log_prob -= log(self.output_amp * (1 - action.pow(2)) + 1e-9)
         log_probs = log_prob - \
             log(self.output_amp * (1 - action.pow(2)) + 1e-9)
+        print(action.pow(2))
 
         log_probs = log_probs.sum(-1)
 

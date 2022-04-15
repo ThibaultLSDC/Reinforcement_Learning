@@ -29,7 +29,7 @@ class Agent(ABC):
         self.buffer = SarsaBuffer(config.buffer_capacity)
 
     @abstractmethod
-    def act(self, state: list, greedy: bool) -> None:
+    def act(self, state: list) -> tuple:
         """
         Fetches an action from the agent, given an input
         :param state: observation vector given by the environment's .step() method. Must be given as received.
@@ -46,12 +46,13 @@ class Agent(ABC):
             "Agent.learn must be defined in the sub-class")
 
     @abstractmethod
-    def save(
+    def store(
         self,
         state: list,
         action: list,
         reward: float,
-        next_state: list
+        done: bool,
+        log_prob: list
     ) -> None:
         """
         Saves the transition (state, action, reward, next_state) to the agent's memory, in the right format
@@ -63,30 +64,45 @@ class Agent(ABC):
         raise NotImplementedError(
             "Agent.save must be defined in the sub-class")
 
-    def train(self, render_rate: int = 20, log_to_wandb: bool = False, epochs):
+    def train(self, epochs, epoch_steps, render_rate: int = 20, log_to_wandb: bool = False):
 
         # wandb setup
         if log_to_wandb:
             wandb.init(
                 project=f"{self.config['name']}_{self.env_id}", entity="thibaultlsdc")
             wandb.config.update(self.config)
+        counter = tqdm(range(epochs), desc=f"Episode 0, Step 0/{epoch_steps}")
+        for epoch in counter:
+            state = self.env.reset()
+            for step in range(epoch_steps):
+                counter.set_description(
+                    f"Episode {epoch}, Step {step}/{epoch_steps}")
+                action, log_prob = self.act(state)
+                next_state, reward, done, _ = self.env.step(action)
 
-        # episodes counter
-        n_episodes = 0
+                self.store(state, action, reward, done, log_prob)
 
-        state = self.env.reset()
+                state = next_state
 
-        for step in range(optim_steps)
+                if done:
+                    state = self.env.reset()
 
-           if done:
-                # iter counter, reset variables
-                n_episodes += 1
+            metrics = self.learn()
 
-                new_metrics['reward'] = total_reward
+            state = self.env.reset()
+            total_reward = 0
+            done = False
+            n_steps = 0
+            while not done:
+                if epoch % render_rate == 0:
+                    self.env.render()
+                action, _ = self.act(state)
+                state, reward, done, _ = self.env(action)
+                total_reward += reward
+                n_steps += 1
 
-                state = self.env.reset()
-                total_reward = 0
-                episode_steps = 0
+            metrics['reward'] = total_reward
+            metrics['ep_len'] = n_steps
 
             if log_to_wandb:
-                wandb.log(new_metrics)
+                wandb.log(metrics)

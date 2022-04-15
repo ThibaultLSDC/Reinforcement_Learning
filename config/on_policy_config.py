@@ -10,5 +10,16 @@ GlobalConfig = {
     'device': 'cuda',
     # torch optimizer to be used
     'optim': 'adam',
-    'lr': 1e-3,
+    'lr': 3e-4,
 }
+
+
+PPOConfig = {
+    'name': 'ppo',
+
+    'gamma': .99,
+    'alpha': 1,
+    'beta': 1,
+
+}
+PPOConfig = PPOConfig | GlobalConfig

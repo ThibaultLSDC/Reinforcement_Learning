@@ -2,7 +2,7 @@ GlobalConfig = {
     # width of the models' hidden layers
     'model_shape': [256, 256],
     'n_steps': 3000000,
-    'pre_run_steps': 1000,
+    'pre_run_steps': 10000,
     'greedy_steps': 100000,
     'batch_size': 256,
 
