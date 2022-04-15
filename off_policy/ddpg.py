@@ -154,7 +154,7 @@ class DDPG(Agent):
 
         return {"loss_q": loss_q.cpu().detach().item(), "loss_ac": loss_ac.cpu().detach().item()}
 
-    def save(self, state, action, reward, done, next_state):
+    def store(self, state, action, reward, done, next_state):
         """
         Saves transition to the memory
         """

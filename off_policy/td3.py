@@ -185,7 +185,7 @@ class TD3(Agent):
         else:
             return {"loss_q1": loss_q1, "loss_q2": loss_q2}
 
-    def save(self, state, action, reward, done, next_state):
+    def store(self, state, action, reward, done, next_state):
         """
         Saves transition to the memory
         :args: all the informations of the transition, given by the env's step

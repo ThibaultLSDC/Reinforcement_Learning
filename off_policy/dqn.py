@@ -126,7 +126,7 @@ class DQN(Agent):
 
         return {"loss_q": loss.cpu().detach().item()}
 
-    def save(self, state, action, reward, done, next_state):
+    def store(self, state, action, reward, done, next_state):
         """
         Saves transition to the memory
         """

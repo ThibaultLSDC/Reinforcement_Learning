@@ -1,7 +1,9 @@
 from typing import TYPE_CHECKING
+from lockfile import AlreadyLocked
 import wandb
 import gym
 from tqdm import tqdm
+import os as os
 
 from abc import ABC, abstractmethod
 
@@ -13,7 +15,7 @@ from time import time
 
 
 class Agent(ABC):
-    def __init__(self, config: 'GlobalConfig', env_id: str) -> None:
+    def __init__(self, config: 'GlobalConfig', env_id: str, run_id: str) -> None:
         """
         Generates an Agent that contains all of its variables, env etc...
         :param config: Config object that has all the infos necessary for the agent to learn
@@ -32,6 +34,13 @@ class Agent(ABC):
 
         # initialize steps
         self.steps_trained = 0
+
+        # save folder
+        self.dir_save = f"./models/{config['name']}/{env_id}/{run_id}"
+        self.run_id = run_id
+        # assert (not os.path.exists(self.dir_save)), "run_id already taken"
+        if not os.path.exists(self.dir_save):
+            os.makedirs(self.dir_save)
 
     @abstractmethod
     def act(self, state: list, greedy: bool) -> None:
@@ -52,7 +61,7 @@ class Agent(ABC):
             "Agent.learn must be defined in the sub-class")
 
     @abstractmethod
-    def save(
+    def store(
         self,
         state: list,
         action: list,
@@ -67,14 +76,38 @@ class Agent(ABC):
         :param next_state: Resulting state after the action
         """
         raise NotImplementedError(
-            "Agent.save must be defined in the sub-class")
+            "Agent.store must be defined in the sub-class")
+    
+    @abstractmethod
+    def save_model(
+        self,
+        step,
+        reward
+    ):
+        """
+        Saves model checkpoints to path
+        """
+        raise NotImplementedError("Agent.save_model must be defined in the sub-class")
+
+    @abstractmethod
+    def load_model(
+        self,
+        path
+    ):
+        """
+        Loads model checkpoints from path
+        """
+        raise NotImplementedError("Agent.load_model must be defined in the sub-class")
 
     def train(self, render_rate: int = 20, log_to_wandb: bool = False):
-
+        
+        if os.path.exists(self.dir_save) and self.config['eval']:
+            print('Starting from already trained model')
+            self.steps_trained += self.load_model("/latest")
         # wandb setup
         if log_to_wandb:
             wandb.init(
-                project=f"{self.config['name']}_{self.env_id}", entity="thibaultlsdc")
+                project=f"{self.config['name']}_{self.env_id}", entity="thibaultlsdc", name=self.run_id)
             wandb.config.update(self.config)
 
         # tqdm loop
@@ -87,7 +120,7 @@ class Agent(ABC):
             action = self.env.action_space.sample()
             next_state, reward, done, _ = self.env.step(action)
             # save the random transitions
-            self.save(state, action, reward, done, next_state)
+            self.store(state, action, reward, done, next_state)
             state = next_state
             if done:
                 state = self.env.reset()
@@ -123,7 +156,7 @@ class Agent(ABC):
             total_reward += reward
 
             top = time()
-            self.save(state, action, reward, done, next_state)
+            self.store(state, action, reward, done, next_state)
             save_time = time() - top
 
             state = next_state
@@ -154,3 +187,20 @@ class Agent(ABC):
 
             if log_to_wandb:
                 wandb.log(new_metrics)
+            
+            if self.config['eval'] and self.steps_trained % self.config['eval_rate'] == 0:
+                self.eval()
+
+    def eval(self):
+
+        done = False
+        tmp_env = gym.make(self.env_id)
+        state = tmp_env.reset()
+        total_reward = 0
+
+        while not done:
+            action = self.act(state, greedy=True)
+            state, reward, done, _ = tmp_env.step(action)
+            total_reward += reward
+
+        self.save_model(self.steps_trained, total_reward)

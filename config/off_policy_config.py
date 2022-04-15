@@ -1,16 +1,16 @@
 GlobalConfig = {
     # width of the models' hidden layers
-    'model_shape': [256, 256],
+    'model_shape': [128],
     'n_steps': 3000000,
-    'pre_run_steps': 50000,
+    'pre_run_steps': 5000,
     'greedy_steps': 100000,
-    'batch_size': 256,
+    'batch_size': 128,
 
     # size of the memory
     'capacity': 150000,
 
     # torch device to use for the model
-    'device': 'cuda',
+    'device': 'cpu',
     # torch optimizer to be used
     'optim': 'adam',
     'lr': 3e-4,
@@ -94,6 +94,10 @@ SACConfig = {
 
     # temperature tuning
     'autotune': True,
-    'alpha_lr': 3e-4
+    'alpha_lr': 3e-4,
+
+    # checkpoints
+    'eval': True,
+    'eval_rate': 20000
 }
 SACConfig = SACConfig | GlobalConfig
