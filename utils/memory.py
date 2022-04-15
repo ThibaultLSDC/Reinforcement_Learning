@@ -31,28 +31,44 @@ class BasicMemory:
         return len(self.storage)
 
 
-class Buffer:
+class RolloutBuffer:
     def __init__(self, capacity: int) -> None:
         """
         Buffer
         """
-        self.storage = deque([], maxlen=capacity)
-        self.transition = namedtuple(
-            'Transition',
-            ('state', 'action', 'reward', 'done', 'log_prob')
-        )
+        self.state = []
+        self.action = []
+        self.reward = []
+        self.done = []
+        self.log_prob = []
+        self.capacity = capacity
 
-    def store(self, *args) -> None:
+    def store(self, state, action, reward, done, log_prob) -> None:
         """
         Add new element
         """
-        self.storage.append(self.transition(*args))
+        self.state.append(state)
+        self.action.append(action)
+        self.reward.append(reward)
+        self.done.append(done)
+        self.log_prob.append(log_prob)
 
     def sample(self, batch_size: int) -> list:
         return rd.sample(self.storage, batch_size)
 
     def _len_(self):
-        return len(self.storage)
+        return len(self.state)
 
     def reset(self):
-        self.__init__(self.storage.maxlen)
+        self.__init__(self.capacity)
+
+    def rollout(self, gamma, bootstrap):
+        discount_rewards = []
+        current_reward = gamma * bootstrap
+        for reward, done in zip(reversed(self.reward), self.done):
+            if done:
+                current_reward = 0
+            current_reward = reward + gamma * current_reward
+            discount_rewards.insert(0, current_reward)
+        
+        self.reward = discount_rewards

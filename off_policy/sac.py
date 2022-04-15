@@ -96,10 +96,10 @@ class SAC(Agent):
 
         if not greedy:
             with torch.no_grad():
-                action, _, _, _, _ = self.actor.sample(state.float())
+                action, _, _, _, _ , _= self.actor.sample(state.float())
         else:
             with torch.no_grad():
-                _, _, _, action, _ = self.actor.sample(state.float())
+                _, _, _, action, _, _ = self.actor.sample(state.float())
         return [x for x in action.cpu()]
 
     def learn(self):
@@ -136,7 +136,7 @@ class SAC(Agent):
         top = time()
         with torch.no_grad():
             # get sample action/log_prob from actor
-            next_action, log_prob, _, mean, _ = self.actor.sample(
+            next_action, log_prob, _, mean, _, _ = self.actor.sample(
                 next_state.float())
 
             # compute target value from sampled action
@@ -163,7 +163,7 @@ class SAC(Agent):
         value_learn_time = time() - top
 
         top = time()
-        new_action, new_log_prob, logs, _, mean_std = self.actor.sample(
+        new_action, new_log_prob, logs, _, mean_std, _ = self.actor.sample(
             state.float())
 
         new_value1, new_value2 = self.critic(

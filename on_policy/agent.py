@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from abc import ABC, abstractmethod
 
-from utils.memory import SarsaBuffer
+from utils.memory import RolloutBuffer
 
 # WandB setup
 if TYPE_CHECKING:
@@ -25,8 +25,9 @@ class Agent(ABC):
         self.env = gym.make(env_id)
         self.env_id = env_id
 
-        # ReplayBuffer
-        self.buffer = SarsaBuffer(config.buffer_capacity)
+        # run params
+        self.epochs = config['epochs']
+        self.epoch_steps = config['epoch_steps']
 
     @abstractmethod
     def act(self, state: list) -> tuple:
@@ -64,19 +65,19 @@ class Agent(ABC):
         raise NotImplementedError(
             "Agent.save must be defined in the sub-class")
 
-    def train(self, epochs, epoch_steps, render_rate: int = 20, log_to_wandb: bool = False):
+    def train(self, render_rate: int = 20, log_to_wandb: bool = False):
 
         # wandb setup
         if log_to_wandb:
             wandb.init(
                 project=f"{self.config['name']}_{self.env_id}", entity="thibaultlsdc")
             wandb.config.update(self.config)
-        counter = tqdm(range(epochs), desc=f"Episode 0, Step 0/{epoch_steps}")
+        counter = tqdm(range(self.epochs), desc=f"Episode 0, Step 0/{self.epoch_steps}")
         for epoch in counter:
             state = self.env.reset()
-            for step in range(epoch_steps):
+            for step in range(self.epoch_steps):
                 counter.set_description(
-                    f"Episode {epoch}, Step {step}/{epoch_steps}")
+                    f"Episode {epoch}, Step {step+1}/{self.epoch_steps}")
                 action, log_prob = self.act(state)
                 next_state, reward, done, _ = self.env.step(action)
 
@@ -90,6 +91,8 @@ class Agent(ABC):
             metrics = self.learn()
 
             state = self.env.reset()
+            self.env.render()
+
             total_reward = 0
             done = False
             n_steps = 0
@@ -97,7 +100,7 @@ class Agent(ABC):
                 if epoch % render_rate == 0:
                     self.env.render()
                 action, _ = self.act(state)
-                state, reward, done, _ = self.env(action)
+                state, reward, done, _ = self.env.step(action)
                 total_reward += reward
                 n_steps += 1
 

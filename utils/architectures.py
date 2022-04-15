@@ -1,4 +1,5 @@
 from torch import nn, tanh, log
+import torch
 from torch.distributions import Normal
 
 
@@ -97,23 +98,26 @@ class GaussianModel(nn.Module):
         log_std = self.log_std(x).clamp(self.min_log_std, self.max_log_std)
         return mu, log_std
 
-    def sample(self, x):
+    def sample(self, x, train=False):
         mu, log_std = self.forward(x)
         std = log_std.exp()
 
         normal = Normal(mu, std)
-        action = normal.rsample()
-
-        log_prob = normal.log_prob(action)
+        if train:
+            action = normal.rsample()
+            log_prob = normal.log_prob(action)
+        else:
+            with torch.no_grad():
+                action = normal.sample()
+                log_prob = normal.log_prob(action)
 
         action = tanh(action)
-        # log_prob -= log(self.output_amp * (1 - action.pow(2)) + 1e-9)
+
         log_probs = log_prob - \
             log(self.output_amp * (1 - action.pow(2)) + 1e-9)
-        print(action.pow(2))
 
         log_probs = log_probs.sum(-1)
 
         mean = tanh(mu) * self.output_amp
 
-        return action * self.output_amp, log_probs, log_prob, mean, std.mean()
+        return action * self.output_amp, log_probs, log_prob, mean, std.mean(), normal

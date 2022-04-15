@@ -4,6 +4,8 @@ from off_policy.ddpg import DDPG
 from off_policy.td3 import TD3
 from off_policy.sac import SAC
 
+from on_policy.ppo import PPO
+
 from argparse import ArgumentParser
 
 parser = ArgumentParser()
@@ -33,6 +35,8 @@ elif model_name == 'td3':
     agent = TD3(env_id, run_id)
 elif model_name == 'sac':
     agent = SAC(env_id, run_id)
+elif model_name=='ppo':
+    agent = PPO(env_id)
 else:
     raise NotImplementedError("Model not supported yet, try 'dqn' or 'ddpg'")
 
